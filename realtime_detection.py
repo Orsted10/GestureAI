@@ -86,7 +86,7 @@ def update_frame(video_label, text_area):
                         count += 1
 
                     # Display the concatenated sentence in the text area
-                    if count == 30: 
+                    if count == 20: 
 
                         if predicted_character == "1":
                             if final_characters:
