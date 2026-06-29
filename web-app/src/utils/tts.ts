@@ -1,105 +1,95 @@
-import { TextToSpeech } from '@capacitor-community/text-to-speech';
-
+/**
+ * TTSManager — uses the Web Speech API as PRIMARY for best voice quality.
+ * Android WebView / Chrome both have access to Google's neural TTS voices via
+ * the standard speechSynthesis API. Capacitor TTS is only a fallback.
+ */
 export class TTSManager {
-  private bestVoiceIdx: number | undefined = undefined;
+  private voice: SpeechSynthesisVoice | null = null;
+  private ready = false;
 
   constructor() {
-    this.pickBestVoice();
-  }
-
-  /** On native Android/iOS: pick the highest-quality English voice available */
-  private async pickBestVoice() {
-    try {
-      const { voices } = await TextToSpeech.getSupportedVoices();
-      if (!voices || voices.length === 0) return;
-
-      const english = voices.filter(v =>
-        v.lang?.toLowerCase().startsWith('en')
-      );
-
-      if (english.length === 0) return;
-
-      // Priority order: WaveNet / Neural > Enhanced > Premium > Google > first en
-      const priorities = [
-        /wavenet/i, /neural/i, /enhanced/i, /premium/i, /google/i,
-      ];
-
-      let best: any = null;
-      for (const pattern of priorities) {
-        best = english.find(v => pattern.test(v.name));
-        if (best) break;
-      }
-      if (!best) best = english[0];
-
-      this.bestVoiceIdx = voices.indexOf(best);
-      console.log(`[TTS] Using voice: "${best.name}" (index ${this.bestVoiceIdx})`);
-    } catch {
-      // Not running on native — web fallback will be used
-    }
-  }
-
-  public async speak(text: string) {
-    if (!text) return;
-    try {
-      const params: Parameters<typeof TextToSpeech.speak>[0] = {
-        text,
-        lang: 'en-US',
-        rate:   0.88,   // Slightly slower = more natural
-        pitch:  0.92,   // Slightly lower = warmer, less robotic
-        volume: 1.0,
-      };
-      if (this.bestVoiceIdx !== undefined) {
-        (params as any).voice = this.bestVoiceIdx;
-      }
-      await TextToSpeech.speak(params);
-    } catch {
-      // Native TTS unavailable (web browser) — use Web Speech API
-      this.webSpeak(text);
-    }
-  }
-
-  /** High-quality Web Speech API fallback for desktop browsers */
-  private webSpeak(text: string) {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    // Voices may not be loaded immediately — try now, then re-try on event
+    this.selectBestVoice();
+    window.speechSynthesis.onvoiceschanged = () => this.selectBestVoice();
+  }
 
-    // Cancel any in-progress utterance first
-    window.speechSynthesis.cancel();
+  private selectBestVoice() {
+    const all = window.speechSynthesis?.getVoices() ?? [];
+    if (!all.length) return;
 
-    const utter  = new SpeechSynthesisUtterance(text);
-    utter.lang   = 'en-US';
-    utter.rate   = 0.88;
-    utter.pitch  = 0.92;
-    utter.volume = 1.0;
+    const en = all.filter(v => v.lang.startsWith('en'));
 
-    // Pick the best available voice in the browser
-    const voices  = window.speechSynthesis.getVoices();
-    const english = voices.filter(v => v.lang.startsWith('en'));
-
-    const priority = [
-      /google us english/i,
-      /google uk english/i,
-      /samantha/i,
+    // Ordered preference list — Chrome/Android WebView → best Google neural voices
+    const patterns = [
+      /google us english/i,        // Chrome desktop  — best quality
+      /en-us-wavenet/i,            // WaveNet neural
+      /en-us-neural/i,
+      /google uk english female/i,
+      /google.*english/i,
+      /samantha/i,                  // macOS premium voice
       /karen/i,
-      /daniel/i,
-      /google/i,
-      /premium/i,
-      /enhanced/i,
-      /wavenet/i,
+      /moira/i,
+      /en-us/i,
+      /en-gb/i,
     ];
 
-    let best: SpeechSynthesisVoice | undefined;
-    for (const p of priority) {
-      best = english.find(v => p.test(v.name));
-      if (best) break;
+    for (const pat of patterns) {
+      const match = en.find(v => pat.test(v.name));
+      if (match) { this.voice = match; break; }
     }
-    if (!best) best = english[0] || voices[0];
-    if (best) utter.voice = best;
 
-    window.speechSynthesis.speak(utter);
+    if (!this.voice) this.voice = en[0] ?? all[0] ?? null;
+    this.ready = true;
+    console.log('[TTS] Voice selected:', this.voice?.name, this.voice?.lang);
+  }
+
+  public async speak(text: string): Promise<void> {
+    if (!text) return;
+
+    // ── Primary: Web Speech API (Google neural voices in Chrome + WebView) ──
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try {
+        await this.webSpeak(text);
+        return;
+      } catch {
+        // fall through to Capacitor fallback
+      }
+    }
+
+    // ── Fallback: Capacitor native TTS plugin ─────────────────────────────
+    try {
+      const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
+      await TextToSpeech.speak({ text, lang: 'en-US', rate: 1.0, pitch: 1.0, volume: 1.0 });
+    } catch { /* ignore */ }
+  }
+
+  private webSpeak(text: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const synth = window.speechSynthesis;
+      synth.cancel(); // stop anything already playing
+
+      const utter      = new SpeechSynthesisUtterance(text);
+      utter.lang       = 'en-US';
+      utter.rate       = 0.95;  // very close to natural speed
+      utter.pitch      = 1.0;   // normal pitch — avoid robotic low pitch
+      utter.volume     = 1.0;
+
+      // Attach the best voice we found
+      if (!this.ready) this.selectBestVoice(); // retry if voices just loaded
+      if (this.voice) utter.voice = this.voice;
+
+      utter.onend   = () => resolve();
+      utter.onerror = e => {
+        // 'interrupted' is not a real error — just cancelled by a new utterance
+        if (e.error === 'interrupted') resolve(); else reject(e);
+      };
+
+      synth.speak(utter);
+    });
   }
 
   public stop() {
-    try { TextToSpeech.stop(); } catch { /* ignore */ }
-    try { window.speechSynthesis?.cancel(); } catch { /* ignore */ }
+    try { window.speechSynthesis?.cancel(); } catch { /* */ }
   }
 }

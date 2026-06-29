@@ -86,11 +86,11 @@ export default function Home() {
 
     // Utility gestures — action only, no TTS
     if (gestureId === 'FIST') {
-      setWords(prev => prev.slice(0, -1));
+      setWords(prev => prev.slice(0, -1));   // delete last word/phrase
       return;
     }
-    if (gestureId === 'TWO_HANDS') {
-      setWords([]);
+    if (gestureId === 'BOTH_FISTS') {
+      setWords([]);                           // clear all
       return;
     }
 

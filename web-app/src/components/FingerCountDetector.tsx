@@ -4,10 +4,34 @@ import React, { useEffect, useRef, useState } from 'react';
 import { TTSManager } from '@/utils/tts';
 import { GESTURE_MAP, type GestureId } from '@/utils/fingerGestures';
 
-// ── Tuning ────────────────────────────────────────────────────────────────────
-const CONFIRM_FRAMES = 14;   // frames of agreement before committing (~0.5s at 30fps)
-const COOLDOWN_MS    = 2200; // lockout after any commit
-const UNKNOWN_RESET  = 20;   // frames of UNKNOWN before resetting candidate
+// ── Tuning ─────────────────────────────────────────────────────────────────
+const CONFIRM_FRAMES  = 22;  // frames of agreement before commit (~0.7s @ 30fps)
+const COOLDOWN_MS     = 2400;
+const HISTORY_SIZE    = 7;   // rolling history for temporal smoothing (mode-voting)
+const UNKNOWN_RESET   = 15;  // frames of UNKNOWN/change to reset candidate
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  GEOMETRY HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Angle (degrees) at joint B, formed by vectors B→A and B→C */
+function angleAt(a: any, b: any, c: any): number {
+  const ax = a.x - b.x, ay = a.y - b.y;
+  const cx = c.x - b.x, cy = c.y - b.y;
+  const dot = ax * cx + ay * cy;
+  const mag = Math.sqrt(ax * ax + ay * ay) * Math.sqrt(cx * cx + cy * cy);
+  if (mag < 1e-6) return 0;
+  return Math.acos(Math.min(1, Math.max(-1, dot / mag))) * 180 / Math.PI;
+}
+
+function dist(a: any, b: any): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  FINGER STATE DETECTION
+//  Uses joint angles (not just y-position) → robust to hand tilt/rotation
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface FingerState {
   thumb: boolean;
@@ -15,120 +39,165 @@ interface FingerState {
   middle: boolean;
   ring: boolean;
   pinky: boolean;
-  thumbPointsUp: boolean;   // thumb tip above wrist
+  thumbPointsUp: boolean;
 }
 
-/** Derive per-finger extension from MediaPipe landmarks */
+const EMPTY_STATE: FingerState = {
+  thumb: false, index: false, middle: false, ring: false, pinky: false, thumbPointsUp: false,
+};
+
+/**
+ * Determine if a non-thumb finger is extended.
+ * Strategy: MCP→PIP→TIP angle must be large (straight finger).
+ * Also falls back to y-comparison for upright hands.
+ */
+function isFingerUp(tip: any, dip: any, pip: any, mcp: any): boolean {
+  // Angle at PIP between MCP-PIP direction and PIP-TIP direction
+  const pipAngle = angleAt(mcp, pip, tip);
+  // Angle at DIP between PIP-DIP direction and DIP-TIP direction
+  const dipAngle = angleAt(pip, dip, tip);
+
+  // Both joints relatively straight = extended finger
+  const angleOk = pipAngle > 155 && dipAngle > 150;
+
+  // Classic y-check (tip clearly above PIP) — still useful for upright hand
+  const yOk = tip.y < pip.y - 0.02;
+
+  // Require BOTH signals (avoids false positives from sideways bent fingers)
+  return angleOk || yOk;
+}
+
+/**
+ * Thumb extension check.
+ * We use TWO independent signals and require both:
+ *   1. Thumb IP joint is straight (angle > 140°)
+ *   2. Thumb tip is far from the middle-finger MCP (not pressed against palm)
+ */
+function isThumbUp(lm: any[]): { extended: boolean; pointsUp: boolean } {
+  const thumbMcp = lm[2];
+  const thumbIp  = lm[3];
+  const thumbTip = lm[4];
+
+  // Signal 1: IP angle (MCP → IP → TIP)
+  const ipAngle = angleAt(thumbMcp, thumbIp, thumbTip);
+  const straight = ipAngle > 140;
+
+  // Signal 2: Thumb tip distance from middle MCP (landmark 9)
+  //           A folded thumb is close to the middle of the palm
+  const handSize    = dist(lm[0], lm[9]) || 0.01;  // wrist to middle-MCP
+  const tipToPalm   = dist(thumbTip, lm[9]);
+  const abducted    = tipToPalm > handSize * 0.85;
+
+  const extended   = straight && abducted;
+  const pointsUp   = thumbTip.y < thumbMcp.y;       // tip above MCP = up
+
+  return { extended, pointsUp };
+}
+
 function detectFingers(lm: any[]): FingerState {
-  if (!lm || lm.length < 21) {
-    return { thumb: false, index: false, middle: false, ring: false, pinky: false, thumbPointsUp: false };
-  }
+  if (!lm || lm.length < 21) return EMPTY_STATE;
 
-  // Non-thumb fingers: tip y < pip y  (y=0 is top)
-  const index  = lm[8].y  < lm[6].y;
-  const middle = lm[12].y < lm[10].y;
-  const ring   = lm[16].y < lm[14].y;
-  const pinky  = lm[20].y < lm[18].y;
+  const { extended: thumb, pointsUp: thumbPointsUp } = isThumbUp(lm);
 
-  // Thumb: measure lateral spread vs hand width
-  const thumbTip  = lm[4];
-  const thumbIp   = lm[3];   // inter-phalangeal joint
-  const indexMcp  = lm[5];
-  const handW     = Math.abs(lm[0].x - lm[9].x) || 0.01;
-  const thumbDist = Math.hypot(thumbTip.x - indexMcp.x, thumbTip.y - indexMcp.y);
-  const ipDist    = Math.hypot(thumbIp.x  - indexMcp.x, thumbIp.y  - indexMcp.y);
-  const thumb     = thumbDist > ipDist * 1.15 && thumbDist > handW * 0.3;
-
-  // Thumb direction
-  const thumbPointsUp = thumbTip.y < lm[2].y;  // tip above MCP base
+  // [tip, dip, pip, mcp] for each finger
+  const index  = isFingerUp(lm[8],  lm[7],  lm[6],  lm[5]);
+  const middle = isFingerUp(lm[12], lm[11], lm[10], lm[9]);
+  const ring   = isFingerUp(lm[16], lm[15], lm[14], lm[13]);
+  const pinky  = isFingerUp(lm[20], lm[19], lm[18], lm[17]);
 
   return { thumb, index, middle, ring, pinky, thumbPointsUp };
 }
 
-/** Classify finger state into a named GestureId */
-function classify(fs: FingerState, lm: any[]): GestureId {
+// ─────────────────────────────────────────────────────────────────────────────
+//  GESTURE CLASSIFIER (single hand)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function classify(fs: FingerState): GestureId {
   const { thumb, index, middle, ring, pinky, thumbPointsUp } = fs;
 
-  // ── Special: OK sign — thumb tip close to index tip ─────────────────────
-  if (lm) {
-    const thumbTip   = lm[4];
-    const indexTip   = lm[8];
-    const handSize   = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) || 0.1;
-    const okDist     = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-    // OK: thumb and index touching, middle/ring/pinky up or any state
-    if (okDist < handSize * 0.35 && !index && !middle && !ring && !pinky && thumb) {
-      // Thumb is "extended" but curled toward index — special case
-      return 'L_SHAPE'; // won't hit this anyway since thumb detection already separates
-    }
-  }
-
-  // ── No fingers at all ────────────────────────────────────────────────────
+  // ── All curled → FIST ────────────────────────────────────────────────────
   if (!thumb && !index && !middle && !ring && !pinky) return 'FIST';
 
-  // ── All 5 ────────────────────────────────────────────────────────────────
+  // ── All 5 extended → OPEN_PALM ───────────────────────────────────────────
   if (thumb && index && middle && ring && pinky) return 'OPEN_PALM';
 
-  // ── Thumb only ───────────────────────────────────────────────────────────
+  // ── Thumb ONLY ───────────────────────────────────────────────────────────
   if (thumb && !index && !middle && !ring && !pinky) {
     return thumbPointsUp ? 'THUMB_UP' : 'THUMB_DOWN';
   }
 
-  // ── 4 fingers (no thumb) ─────────────────────────────────────────────────
+  // ── 4 fingers, no thumb ───────────────────────────────────────────────────
   if (!thumb && index && middle && ring && pinky) return 'FOUR';
 
-  // ── 3 fingers (index+middle+ring, no thumb) ──────────────────────────────
+  // ── 3 fingers (index+middle+ring), no thumb ───────────────────────────────
   if (!thumb && index && middle && ring && !pinky) return 'THREE';
 
-  // ── Peace (index+middle, no thumb) ───────────────────────────────────────
+  // ── Peace (index+middle), no thumb ────────────────────────────────────────
   if (!thumb && index && middle && !ring && !pinky) return 'PEACE';
 
-  // ── Index only ───────────────────────────────────────────────────────────
+  // ── Index only ────────────────────────────────────────────────────────────
   if (!thumb && index && !middle && !ring && !pinky) return 'INDEX';
 
-  // ── Middle only ──────────────────────────────────────────────────────────
-  if (!thumb && !index && middle && !ring && !pinky) return 'MIDDLE_ONLY';
-
-  // ── Ring only ────────────────────────────────────────────────────────────
-  if (!thumb && !index && !middle && ring && !pinky) return 'RING_ONLY';
-
-  // ── Pinky only ───────────────────────────────────────────────────────────
+  // ── Pinky only ────────────────────────────────────────────────────────────
   if (!thumb && !index && !middle && !ring && pinky) return 'PINKY';
 
-  // ── Rock sign: index + pinky ──────────────────────────────────────────────
+  // ── Rock: index + pinky (middle+ring folded, no thumb) ────────────────────
   if (!thumb && index && !middle && !ring && pinky) return 'ROCK';
 
-  // ── Middle + Ring ─────────────────────────────────────────────────────────
-  if (!thumb && !index && middle && ring && !pinky) return 'MIDDLE_RING';
-
-  // ── Ring + Pinky ─────────────────────────────────────────────────────────
-  if (!thumb && !index && !middle && ring && pinky) return 'RING_PINKY';
-
-  // ── ILY: thumb + index + pinky ───────────────────────────────────────────
+  // ── ILY: thumb + index + pinky (middle+ring folded) ──────────────────────
   if (thumb && index && !middle && !ring && pinky) return 'ILY';
 
-  // ── Shaka: thumb + pinky ─────────────────────────────────────────────────
+  // ── Shaka: thumb + pinky (others folded) ─────────────────────────────────
   if (thumb && !index && !middle && !ring && pinky) return 'SHAKA';
 
-  // ── L-shape: thumb + index ───────────────────────────────────────────────
+  // ── L-shape: thumb + index (others folded) ────────────────────────────────
   if (thumb && index && !middle && !ring && !pinky) return 'L_SHAPE';
 
-  // ── Thumb + middle ───────────────────────────────────────────────────────
-  if (thumb && !index && middle && !ring && !pinky) return 'THUMB_MIDDLE';
-
-  // ── Three + thumb: thumb + index + middle ────────────────────────────────
+  // ── Thumb + index + middle (THREE_THUMB) ─────────────────────────────────
   if (thumb && index && middle && !ring && !pinky) return 'THREE_THUMB';
 
-  // ── Four + thumb: thumb + index + middle + ring ──────────────────────────
+  // ── Thumb + index + middle + ring (FOUR_THUMB) ────────────────────────────
   if (thumb && index && middle && ring && !pinky) return 'FOUR_THUMB';
 
   return 'UNKNOWN';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  TWO-HAND GESTURE CLASSIFIER
+// ─────────────────────────────────────────────────────────────────────────────
+
+function classifyTwoHand(rightLm: any[], leftLm: any[]): GestureId | null {
+  const r = detectFingers(rightLm);
+  const l = detectFingers(leftLm);
+  const rId = classify(r);
+  const lId = classify(l);
+
+  if (rId === 'FIST'      && lId === 'FIST')      return 'BOTH_FISTS';
+  if (rId === 'OPEN_PALM' && lId === 'OPEN_PALM')  return 'BOTH_OPEN';
+  if (rId === 'PEACE'     && lId === 'PEACE')      return 'BOTH_PEACE';
+  if (rId === 'THUMB_UP'  && lId === 'THUMB_UP')   return 'BOTH_THUMB_UP';
+
+  return null; // no matching two-hand combo
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  TEMPORAL SMOOTHING — mode-voting over rolling history window
+// ─────────────────────────────────────────────────────────────────────────────
+
+function modeVote(history: GestureId[]): GestureId {
+  if (!history.length) return 'UNKNOWN';
+  const counts: Record<string, number> = {};
+  for (const g of history) counts[g] = (counts[g] || 0) + 1;
+  return Object.entries(counts).sort(([, a], [, b]) => b - a)[0]![0] as GestureId;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface FingerCountDetectorProps {
-  onSentenceDetected: (sentence: string, gestureId: GestureId) => void;
-  onGestureUpdate?: (gestureId: GestureId, progress: number) => void;
+  onSentenceDetected: (phrase: string, gestureId: GestureId) => void;
+  onGestureUpdate?:   (gestureId: GestureId, progress: number) => void;
 }
 
 export default function FingerCountDetector({
@@ -139,13 +208,15 @@ export default function FingerCountDetector({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [statusMsg, setStatusMsg] = useState('Starting camera…');
 
-  const ttsRef           = useRef<TTSManager | null>(null);
-  const onSentenceRef    = useRef(onSentenceDetected);
+  const ttsRef             = useRef<TTSManager | null>(null);
+  const onSentenceRef      = useRef(onSentenceDetected);
   const onGestureUpdateRef = useRef(onGestureUpdate);
 
+  // State machine refs
+  const historyRef       = useRef<GestureId[]>([]);    // rolling classification history
   const candidateRef     = useRef<GestureId>('UNKNOWN');
   const confirmCountRef  = useRef(0);
-  const unknownCountRef  = useRef(0);
+  const unknownStreakRef = useRef(0);
   const lastCommitRef    = useRef(0);
 
   useEffect(() => { onSentenceRef.current      = onSentenceDetected; }, [onSentenceDetected]);
@@ -159,25 +230,22 @@ export default function FingerCountDetector({
     ttsRef.current = new TTSManager();
     setStatusMsg('Loading MediaPipe…');
 
-    const checkScripts = setInterval(() => {
+    const check = setInterval(() => {
       const w = window as any;
-      if (!alive) { clearInterval(checkScripts); return; }
-      if (w.Holistic && w.Camera) {
-        clearInterval(checkScripts);
-        setup(w);
-      }
+      if (!alive) { clearInterval(check); return; }
+      if (w.Holistic && w.Camera) { clearInterval(check); setup(w); }
     }, 300);
 
     function setup(w: any) {
       holistic = new w.Holistic({
-        locateFile: (file: string) => `/mediapipe/holistic/${file}`,
+        locateFile: (f: string) => `/mediapipe/holistic/${f}`,
       });
       holistic.setOptions({
         modelComplexity: 1,
         smoothLandmarks: true,
         enableSegmentation: false,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        minDetectionConfidence: 0.55,
+        minTrackingConfidence: 0.55,
       });
       holistic.onResults(onResults);
 
@@ -198,7 +266,7 @@ export default function FingerCountDetector({
     function onResults(results: any) {
       const w = window as any;
 
-      // ── Draw ───────────────────────────────────────────────────────────────
+      // ── Draw ─────────────────────────────────────────────────────────────
       if (canvasRef.current) {
         const ctx = canvasRef.current.getContext('2d');
         if (ctx) {
@@ -208,7 +276,6 @@ export default function FingerCountDetector({
             ctx.translate(canvasRef.current.width, 0);
             ctx.scale(-1, 1);
             ctx.drawImage(results.image, 0, 0, canvasRef.current.width, canvasRef.current.height);
-
             const drawHand = (lms: any) => {
               if (!lms || !w.HAND_CONNECTIONS) return;
               w.drawConnectors(ctx, lms, w.HAND_CONNECTIONS, { color: '#A78BFA', lineWidth: 3 });
@@ -221,34 +288,39 @@ export default function FingerCountDetector({
         }
       }
 
-      // ── Gesture detection ──────────────────────────────────────────────────
-      // Use dominant hand (right preferred, fall back to left)
-      const hand = results.rightHandLandmarks || results.leftHandLandmarks;
-
-      // Two-hand detection: both hands present
-      const twoHands = !!(results.rightHandLandmarks && results.leftHandLandmarks);
-
+      // ── Detect ───────────────────────────────────────────────────────────
+      const hasRight = !!results.rightHandLandmarks;
+      const hasLeft  = !!results.leftHandLandmarks;
       const now      = Date.now();
       const inCooldown = now - lastCommitRef.current < COOLDOWN_MS;
 
-      if (!hand) {
-        candidateRef.current  = 'UNKNOWN';
-        confirmCountRef.current = 0;
-        onGestureUpdateRef.current?.('UNKNOWN', 0);
-        return;
+      let rawGesture: GestureId = 'UNKNOWN';
+
+      if (hasRight && hasLeft) {
+        // Two-hand: check specific combo first, otherwise ignore (avoid confusion)
+        const combo = classifyTwoHand(results.rightHandLandmarks, results.leftHandLandmarks);
+        rawGesture = combo ?? 'UNKNOWN';
+      } else if (hasRight || hasLeft) {
+        const lm  = results.rightHandLandmarks ?? results.leftHandLandmarks;
+        const fs  = detectFingers(lm);
+        rawGesture = classify(fs);
       }
 
-      const fs = detectFingers(hand);
-      let gesture: GestureId = twoHands ? 'TWO_HANDS' : classify(fs, hand);
+      // ── Temporal smoothing ────────────────────────────────────────────────
+      const hist = historyRef.current;
+      hist.push(rawGesture);
+      if (hist.length > HISTORY_SIZE) hist.shift();
+      const gesture = modeVote(hist);  // most common in last N frames
 
       if (inCooldown) {
         onGestureUpdateRef.current?.(gesture, 0);
         return;
       }
 
+      // ── Candidate state machine ───────────────────────────────────────────
       if (gesture === 'UNKNOWN') {
-        unknownCountRef.current++;
-        if (unknownCountRef.current >= UNKNOWN_RESET) {
+        unknownStreakRef.current++;
+        if (unknownStreakRef.current >= UNKNOWN_RESET) {
           candidateRef.current   = 'UNKNOWN';
           confirmCountRef.current = 0;
         }
@@ -256,13 +328,14 @@ export default function FingerCountDetector({
         return;
       }
 
-      unknownCountRef.current = 0;
+      unknownStreakRef.current = 0;
 
       if (gesture === candidateRef.current) {
         confirmCountRef.current++;
       } else {
+        // New gesture seen — restart count (with a small head-start to feel snappier)
         candidateRef.current    = gesture;
-        confirmCountRef.current = 1;
+        confirmCountRef.current = 2;
       }
 
       const progress = Math.min(confirmCountRef.current / CONFIRM_FRAMES, 1);
@@ -270,13 +343,15 @@ export default function FingerCountDetector({
 
       if (confirmCountRef.current >= CONFIRM_FRAMES) {
         const def = GESTURE_MAP[gesture];
-        console.log(`[GestureAI] Committed: ${gesture}`);
+        if (!def) return;
+
+        console.log(`[GestureAI Custom] ✓ ${gesture}`);
         lastCommitRef.current   = now;
         candidateRef.current    = 'UNKNOWN';
         confirmCountRef.current = 0;
+        historyRef.current      = [];  // clear history to avoid immediate re-trigger
 
         if (def.isUtility) {
-          // Utility gestures: fire event without speaking
           onSentenceRef.current('', gesture);
         } else if (def.phrase) {
           ttsRef.current?.speak(def.phrase);
@@ -287,8 +362,8 @@ export default function FingerCountDetector({
 
     return () => {
       alive = false;
-      clearInterval(checkScripts);
-      try { camera?.stop(); }  catch (_) {}
+      clearInterval(check);
+      try { camera?.stop(); }   catch (_) {}
       try { holistic?.close(); } catch (_) {}
     };
   }, []);

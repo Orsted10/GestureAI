@@ -1,41 +1,44 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Gesture vocabulary — 20 distinct hand poses mapped to composable phrases
-// 2 utility gestures (silent), 18 phrase gestures
+// Reliable gesture vocabulary — only gestures that are geometrically distinct
+// and easy for a human to hold stably.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type GestureId =
-  // Utility (silent)
-  | 'FIST'        // 0 fingers — delete last word
-  | 'TWO_HANDS'   // both hands open — clear all
-  // Phrases
-  | 'INDEX'           // index only
-  | 'PEACE'           // index + middle
-  | 'THREE'           // index + middle + ring
-  | 'FOUR'            // index + middle + ring + pinky
-  | 'OPEN_PALM'       // all 5 (thumb + 4 fingers)
-  | 'THUMB_UP'        // thumb only, pointing up
-  | 'THUMB_DOWN'      // thumb only, pointing down
-  | 'PINKY'           // pinky only
-  | 'ROCK'            // index + pinky  (\m/)
-  | 'SHAKA'           // thumb + pinky
-  | 'L_SHAPE'         // thumb + index (spread)
-  | 'ILY'             // thumb + index + pinky  (ASL "I Love You")
-  | 'THREE_THUMB'     // thumb + index + middle
-  | 'FOUR_THUMB'      // thumb + index + middle + ring
-  | 'MIDDLE_ONLY'     // middle only
-  | 'RING_ONLY'       // ring only
-  | 'THUMB_MIDDLE'    // thumb + middle (skip index)
-  | 'MIDDLE_RING'     // middle + ring (skip index)
-  | 'RING_PINKY'      // ring + pinky  (skip index+middle)
+  // ── Utility (silent, no TTS) ─────────────────────────────────────────────
+  | 'FIST'          // ✊ one hand fist → delete last word
+  | 'BOTH_FISTS'    // 🤜🤛 both fists → clear all
+  // ── Standard finger count (no thumb) ────────────────────────────────────
+  | 'INDEX'         // ☝️  index only
+  | 'PEACE'         // ✌️  index + middle
+  | 'THREE'         // 🤟 index + middle + ring
+  | 'FOUR'          // 🖖 index + middle + ring + pinky
+  | 'OPEN_PALM'     // 🖐️ all 5 — thumb + 4 fingers
+  // ── Thumb variants ───────────────────────────────────────────────────────
+  | 'THUMB_UP'      // 👍 thumb only pointing up
+  | 'THUMB_DOWN'    // 👎 thumb only pointing down
+  // ── Isolated / special single fingers ───────────────────────────────────
+  | 'PINKY'         // 🤙 pinky only
+  // ── Distinctive multi-finger combos (no thumb) ───────────────────────────
+  | 'ROCK'          // 🤘 index + pinky (\m/)
+  // ── Thumb + finger combos ────────────────────────────────────────────────
+  | 'SHAKA'         // 🤙 thumb + pinky (hang loose)
+  | 'L_SHAPE'       // 🫲 thumb + index (L)
+  | 'ILY'           // 🤟 thumb + index + pinky (ASL I Love You)
+  | 'THREE_THUMB'   // thumb + index + middle
+  | 'FOUR_THUMB'    // thumb + index + middle + ring (no pinky)
+  // ── Two-hand gestures ────────────────────────────────────────────────────
+  | 'BOTH_OPEN'     // 🙌 both open palms
+  | 'BOTH_PEACE'    // ✌️✌️ peace on both hands
+  | 'BOTH_THUMB_UP' // 👍👍 thumbs up on both
   | 'UNKNOWN';
 
 export interface GestureDefinition {
   id: GestureId;
-  label: string;        // human-readable name
-  emoji: string;        // representative emoji
-  phrase: string;       // phrase to add to sentence builder (empty = silent utility)
-  isUtility: boolean;   // if true: performs an action instead of speaking
-  description: string;  // how to show the gesture
+  label: string;
+  emoji: string;
+  phrase: string;
+  isUtility: boolean;
+  description: string;
 }
 
 export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
@@ -43,117 +46,109 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
   FIST: {
     id: 'FIST', label: 'Fist', emoji: '✊',
     phrase: '', isUtility: true,
-    description: 'Close all fingers into a fist',
+    description: 'Close ALL fingers into a fist',
   },
-  TWO_HANDS: {
-    id: 'TWO_HANDS', label: 'Both Hands', emoji: '🙌',
+  BOTH_FISTS: {
+    id: 'BOTH_FISTS', label: 'Both Fists', emoji: '🤜🤛',
     phrase: '', isUtility: true,
-    description: 'Show both open palms at the same time',
+    description: 'Make a fist with BOTH hands',
   },
 
   // ── Finger count (no thumb) ───────────────────────────────────────────────
   INDEX: {
-    id: 'INDEX', label: '1 Finger', emoji: '☝️',
+    id: 'INDEX', label: '1 Finger (Index)', emoji: '☝️',
     phrase: 'Hello!', isUtility: false,
-    description: 'Raise only your index finger',
+    description: 'Raise ONLY your index finger. Curl all others.',
   },
   PEACE: {
-    id: 'PEACE', label: 'Peace / V', emoji: '✌️',
+    id: 'PEACE', label: 'Peace Sign (V)', emoji: '✌️',
     phrase: 'How are you?', isUtility: false,
-    description: 'Raise index + middle finger (peace sign)',
+    description: 'Index + middle up. Thumb and other fingers curled.',
   },
   THREE: {
-    id: 'THREE', label: '3 Fingers', emoji: '🤟',
+    id: 'THREE', label: '3 Fingers', emoji: '🖖',
     phrase: 'I am', isUtility: false,
-    description: 'Raise index + middle + ring finger',
+    description: 'Index + middle + ring up. Thumb and pinky curled.',
   },
   FOUR: {
-    id: 'FOUR', label: '4 Fingers', emoji: '🖖',
+    id: 'FOUR', label: '4 Fingers (no thumb)', emoji: '🖖',
     phrase: 'going to', isUtility: false,
-    description: 'Raise index + middle + ring + pinky (no thumb)',
+    description: 'All 4 fingers up — index to pinky. Thumb curled IN.',
   },
   OPEN_PALM: {
-    id: 'OPEN_PALM', label: 'Open Palm', emoji: '🖐️',
+    id: 'OPEN_PALM', label: 'Open Palm (all 5)', emoji: '🖐️',
     phrase: 'Thank you!', isUtility: false,
-    description: 'All 5 fingers spread open, palm facing camera',
+    description: 'All 5 fingers spread open including thumb.',
   },
 
   // ── Thumb variants ────────────────────────────────────────────────────────
   THUMB_UP: {
     id: 'THUMB_UP', label: 'Thumbs Up', emoji: '👍',
     phrase: 'Yes,', isUtility: false,
-    description: 'Only thumb extended, pointing upward',
+    description: 'ONLY thumb extended and pointing UP. All fingers curled.',
   },
   THUMB_DOWN: {
     id: 'THUMB_DOWN', label: 'Thumbs Down', emoji: '👎',
     phrase: 'No,', isUtility: false,
-    description: 'Only thumb extended, pointing downward',
+    description: 'ONLY thumb extended and pointing DOWN. All fingers curled.',
   },
 
-  // ── Single isolated fingers ───────────────────────────────────────────────
+  // ── Single isolated finger ────────────────────────────────────────────────
   PINKY: {
-    id: 'PINKY', label: 'Pinky', emoji: '🤙',
+    id: 'PINKY', label: 'Pinky Only', emoji: '🤙',
     phrase: 'I need', isUtility: false,
-    description: 'Extend only your pinky finger',
-  },
-  MIDDLE_ONLY: {
-    id: 'MIDDLE_ONLY', label: 'Middle Finger', emoji: '🖕',
-    phrase: "I'm sorry.", isUtility: false,
-    description: 'Extend only your middle finger',
-  },
-  RING_ONLY: {
-    id: 'RING_ONLY', label: 'Ring Finger', emoji: '💍',
-    phrase: 'Can you', isUtility: false,
-    description: 'Extend only your ring finger',
+    description: 'Raise ONLY your pinky finger. All others curled.',
   },
 
-  // ── Two-finger combos (no thumb) ──────────────────────────────────────────
+  // ── Multi-finger combos (no thumb) ───────────────────────────────────────
   ROCK: {
-    id: 'ROCK', label: 'Rock Sign', emoji: '🤘',
+    id: 'ROCK', label: 'Rock / Metal \m/', emoji: '🤘',
     phrase: 'Please,', isUtility: false,
-    description: 'Index + pinky extended (rock/metal sign)',
-  },
-  MIDDLE_RING: {
-    id: 'MIDDLE_RING', label: 'Middle + Ring', emoji: '🤞',
-    phrase: "I'm not feeling well.", isUtility: false,
-    description: 'Extend middle + ring fingers only',
-  },
-  RING_PINKY: {
-    id: 'RING_PINKY', label: 'Ring + Pinky', emoji: '🤙',
-    phrase: 'Water please.', isUtility: false,
-    description: 'Extend ring + pinky fingers only',
+    description: 'Index + pinky up. Middle + ring curled down. No thumb.',
   },
 
   // ── Thumb + finger combos ─────────────────────────────────────────────────
   L_SHAPE: {
-    id: 'L_SHAPE', label: 'L-Shape', emoji: '👌',
+    id: 'L_SHAPE', label: 'L-Shape', emoji: '🫲',
     phrase: 'I want to', isUtility: false,
-    description: 'Thumb + index extended forming an "L" shape',
+    description: 'Thumb pointing OUT + index pointing UP. Others curled.',
   },
   SHAKA: {
     id: 'SHAKA', label: 'Shaka / Hang Loose', emoji: '🤙',
     phrase: 'No worries!', isUtility: false,
-    description: 'Thumb + pinky extended (hang loose / shaka)',
-  },
-  THUMB_MIDDLE: {
-    id: 'THUMB_MIDDLE', label: 'Thumb + Middle', emoji: '👋',
-    phrase: 'Help me please.', isUtility: false,
-    description: 'Extend thumb + middle finger (skip index)',
+    description: 'Thumb + pinky extended. Middle 3 fingers curled.',
   },
   ILY: {
-    id: 'ILY', label: 'I Love You', emoji: '🤟',
+    id: 'ILY', label: 'I Love You (ASL)', emoji: '🤟',
     phrase: 'I love you!', isUtility: false,
-    description: 'Thumb + index + pinky extended (ASL "I Love You")',
+    description: 'Thumb + index + pinky extended. Middle + ring curled.',
   },
   THREE_THUMB: {
-    id: 'THREE_THUMB', label: '3 + Thumb', emoji: '🤙',
+    id: 'THREE_THUMB', label: 'Thumb + 2 fingers', emoji: '🤙',
     phrase: 'Good morning!', isUtility: false,
-    description: 'Thumb + index + middle extended',
+    description: 'Thumb + index + middle up. Ring + pinky curled.',
   },
   FOUR_THUMB: {
-    id: 'FOUR_THUMB', label: '4 + Thumb', emoji: '🖐️',
+    id: 'FOUR_THUMB', label: '4 fingers + thumb (no pinky)', emoji: '🖐️',
     phrase: 'Goodbye!', isUtility: false,
-    description: 'Thumb + index + middle + ring extended (no pinky)',
+    description: 'Thumb + index + middle + ring up. ONLY pinky curled.',
+  },
+
+  // ── Two-hand gestures ─────────────────────────────────────────────────────
+  BOTH_OPEN: {
+    id: 'BOTH_OPEN', label: 'Both Open Palms', emoji: '🙌',
+    phrase: 'That is absolutely wonderful!', isUtility: false,
+    description: 'Show BOTH open palms at the same time.',
+  },
+  BOTH_PEACE: {
+    id: 'BOTH_PEACE', label: 'Double Peace', emoji: '✌️✌️',
+    phrase: 'No problem at all!', isUtility: false,
+    description: 'Peace sign (V) with BOTH hands simultaneously.',
+  },
+  BOTH_THUMB_UP: {
+    id: 'BOTH_THUMB_UP', label: 'Double Thumbs Up', emoji: '👍👍',
+    phrase: 'That is absolutely amazing!', isUtility: false,
+    description: 'Thumbs up with BOTH hands simultaneously.',
   },
 
   UNKNOWN: {
@@ -163,18 +158,17 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
   },
 };
 
-// Ordered list for the gesture legend display (utility first, then phrases)
+// Display order for the gesture legend
 export const GESTURE_LIST: GestureId[] = [
-  'FIST', 'TWO_HANDS',
+  'FIST', 'BOTH_FISTS',
   'INDEX', 'PEACE', 'THREE', 'FOUR', 'OPEN_PALM',
   'THUMB_UP', 'THUMB_DOWN',
-  'PINKY', 'MIDDLE_ONLY', 'RING_ONLY',
-  'ROCK', 'MIDDLE_RING', 'RING_PINKY',
-  'L_SHAPE', 'SHAKA', 'THUMB_MIDDLE',
-  'ILY', 'THREE_THUMB', 'FOUR_THUMB',
+  'PINKY', 'ROCK',
+  'L_SHAPE', 'SHAKA', 'ILY', 'THREE_THUMB', 'FOUR_THUMB',
+  'BOTH_OPEN', 'BOTH_PEACE', 'BOTH_THUMB_UP',
 ];
 
-// Legacy compat — keep old FINGER_SENTENCES import working
+// Legacy compat
 export const FINGER_SENTENCES: Record<number, string> = {
   1: GESTURE_MAP.INDEX.phrase,
   2: GESTURE_MAP.PEACE.phrase,
