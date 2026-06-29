@@ -102,8 +102,8 @@ export default function ASLDetector({ onWordDetected, onSignUpdate }: ASLDetecto
                 await holistic.send({ image: videoRef.current });
               }
             },
-            width: 1280,
-            height: 720,
+            width: window.innerHeight > window.innerWidth ? 480 : 640,
+            height: window.innerHeight > window.innerWidth ? 640 : 480,
           });
           camera.start().then(() => {
             if (alive) setStatusMsg(tfliteModelRef.current ? '' : 'Loading TFLite model…');
