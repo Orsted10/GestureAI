@@ -1,30 +1,50 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import Script from "next/script";
-import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
+import type { Metadata } from 'next';
+import Script from 'next/script';
+import './globals.css';
 
 export const metadata: Metadata = {
-  title: "GestureAI | Real-time ASL Translation",
-  description: "Next-gen American Sign Language translation powered by machine learning.",
+  title: 'GestureAI – Real-time Sign Language Recognition',
+  description:
+    'Detect ASL words in real time, build sentences, and hear them spoken — 100% on-device.',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <head>
-        <Script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" strategy="beforeInteractive" />
-        <Script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" strategy="beforeInteractive" />
-        <Script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" strategy="beforeInteractive" />
-        <Script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" strategy="beforeInteractive" />
-      </head>
-      <body className={`${inter.className} bg-black text-gray-100 min-h-screen antialiased`}>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         {children}
+
+        {/*
+          All scripts are served locally from /public — works fully offline
+          in both the browser and the Android APK (Capacitor WebView).
+          strategy="beforeInteractive" ensures sequential execution so TF loads before TFLite.
+        */}
+
+        {/* TensorFlow.js core */}
+        <Script
+          src="/tfjs/tf.min.js"
+          strategy="beforeInteractive"
+        />
+        {/* TFLite runtime — WASM loaded from /tflite/ (local) */}
+        <Script
+          src="/tflite/tf-tflite.min.js"
+          strategy="beforeInteractive"
+        />
+        {/* MediaPipe — JS loaders from CDN, model binaries served locally */}
+        <Script
+          src="/mediapipe/camera_utils/camera_utils.js"
+          strategy="beforeInteractive"
+        />
+        <Script
+          src="/mediapipe/drawing_utils/drawing_utils.js"
+          strategy="beforeInteractive"
+        />
+        <Script
+          src="/mediapipe/holistic/holistic.js"
+          strategy="beforeInteractive"
+        />
       </body>
     </html>
   );

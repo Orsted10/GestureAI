@@ -9,26 +9,25 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
     "@mediapipe/camera_utils": "^0.3.1675466862",
-    "@mediapipe/control_utils": "^0.6.1675466023",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
-    "@mediapipe/hands": "^0.4.1675469240",
-    "clsx": "^2.1.1",
-    "framer-motion": "^12.38.0",
-    "lucide-react": "^1.14.0",
-    "next": "16.2.4",
+    "@mediapipe/holistic": "^0.5.1675471629",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-tflite": "^0.0.1-alpha.9",
+    "lucide-react": "^1.22.0",
+    "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "tailwind-merge": "^3.5.0"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@capacitor/cli": "^8.4.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
-    "tailwindcss": "^4",
+    "eslint-config-next": "16.2.9",
     "typescript": "^5"
   }
 }

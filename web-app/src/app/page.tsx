@@ -1,188 +1,233 @@
-"use client";
+'use client';
 
-import ASLDetector from "@/components/ASLDetector";
-import { HandMetal, Sparkles, Zap, Shield, Cpu, ChevronRight } from "lucide-react";
-import { motion } from "framer-motion";
+import dynamic from 'next/dynamic';
+import { useState, useCallback, useRef } from 'react';
+import { Camera, Clipboard, Volume2, Trash2, ExternalLink, CheckCheck, Type, Zap, X, BarChart2 } from 'lucide-react';
+
+const ASLDetector = dynamic(() => import('@/components/ASLDetector'), {
+  ssr: false,
+  loading: () => (
+    <div className="detector-overlay">
+      <div className="spinner animate-spin" />
+      <p className="overlay-text animate-pulse">Initialising…</p>
+    </div>
+  ),
+});
+
+function speakText(text: string) {
+  if (!text || typeof window === 'undefined') return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  const preferred =
+    voices.find(v => /samantha|karen|daniel|google uk|zira|premium|enhanced/i.test(v.name)) ||
+    voices.find(v => v.lang.startsWith('en'));
+  if (preferred) utter.voice = preferred;
+  utter.rate = 0.92;
+  utter.pitch = 1.05;
+  window.speechSynthesis.speak(utter);
+}
 
 export default function Home() {
+  const [words, setWords]             = useState<string[]>([]);
+  const [currentSign, setCurrentSign]  = useState('');
+  const [confidence, setConfidence]    = useState(0);
+  const [commitProgress, setCommitProgress] = useState(0);
+  const [copied, setCopied]            = useState(false);
+
+  /** Called by ASLDetector for EVERY confirmed detection */
+  const handleWordDetected = useCallback((word: string) => {
+    setCurrentSign(word);
+    setCommitProgress(0);
+    setWords(prev => [...prev, word]);
+  }, []);
+
+  /** Live sign preview + commit progress (0=not started, 1=committed) */
+  const handleSignUpdate = useCallback((sign: string, conf: number, progress: number) => {
+    setCurrentSign(sign);
+    setConfidence(conf);
+    setCommitProgress(progress);
+  }, []);
+
+  const sentence  = words.join(' ');
+  const wordCount = words.length;
+
+  const handleCopy = () => {
+    if (!sentence) return;
+    navigator.clipboard.writeText(sentence).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  const handleReVoice    = () => speakText(sentence);
+  const handleClear      = () => { setWords([]); setCurrentSign(''); setConfidence(0); };
+  const handleRemove     = (idx: number) => setWords(prev => prev.filter((_, i) => i !== idx));
+  const handleRemoveLast = () => setWords(prev => prev.slice(0, -1));
+
   return (
-    <div className="min-h-screen flex flex-col relative overflow-hidden bg-black selection:bg-indigo-500/30">
-      {/* Animated Background Gradients */}
-      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/20 rounded-full blur-[150px] pointer-events-none animate-pulse" style={{ animationDuration: '8s' }} />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/20 rounded-full blur-[150px] pointer-events-none animate-pulse" style={{ animationDuration: '10s' }} />
-      <div className="absolute top-[40%] left-[40%] w-[20%] h-[20%] bg-purple-600/10 rounded-full blur-[100px] pointer-events-none" />
+    <div className="app-wrapper">
+      <div className="container">
 
-      {/* Header */}
-      <header className="border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2"
-          >
-            <div className="bg-gradient-to-br from-indigo-500 to-blue-600 p-2 rounded-xl shadow-lg shadow-indigo-500/20">
-              <HandMetal className="w-5 h-5 text-white" />
+        {/* ── HEADER ── */}
+        <header className="header animate-in">
+          <div className="brand">
+            <h1 className="brand-name">Gesture<span>AI</span></h1>
+            <p className="brand-tag">Real-time ASL Word Recognition</p>
+          </div>
+          <div className="header-right">
+            <div className="badge-offline">
+              <span className="badge-dot" />
+              100% Offline
             </div>
-            <span className="font-bold text-xl tracking-tight text-white">GestureAI</span>
-          </motion.div>
-          
-          <motion.nav 
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-400"
-          >
-            <a href="#detector" className="hover:text-white transition-colors">Translator</a>
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-white transition-colors">How it works</a>
-          </motion.nav>
-
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            <a 
-              href="https://github.com" 
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-medium transition-all"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
-              <span>Star on GitHub</span>
+            <a href="https://github.com/Orsted10/GestureAI" target="_blank" rel="noreferrer" className="btn-ghost" title="GitHub">
+              <ExternalLink size={16} />
             </a>
-          </motion.div>
-        </div>
-      </header>
+          </div>
+        </header>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center justify-start pt-20 pb-24 px-6 relative z-10 w-full max-w-7xl mx-auto">
-        
-        {/* Hero Section */}
-        <div className="text-center max-w-4xl mb-20 space-y-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-sm font-medium backdrop-blur-sm"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Next-Gen Edge AI Model</span>
-          </motion.div>
-          
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-5xl sm:text-7xl font-extrabold tracking-tight text-white leading-[1.1]"
-          >
-            Communicate freely with <br className="hidden sm:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-blue-400 to-purple-400">
-              Sign Language AI
-            </span>
-          </motion.h1>
-          
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed"
-          >
-            Experience zero-latency American Sign Language translation directly in your browser. Powered by MediaPipe and advanced Random Forest classifiers.
-          </motion.p>
+        {/* ── MAIN GRID ── */}
+        <div className="main-grid animate-in" style={{ animationDelay: '0.08s' }}>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="flex items-center justify-center gap-4 pt-4"
-          >
-            <a 
-              href="#detector"
-              className="flex items-center gap-2 px-8 py-4 bg-white text-black rounded-full font-semibold hover:bg-gray-200 transition-all shadow-[0_0_40px_rgba(255,255,255,0.3)]"
-            >
-              Start Translating
-              <ChevronRight className="w-4 h-4" />
-            </a>
-          </motion.div>
-        </div>
+          {/* ── LEFT: Camera ── */}
+          <div className="camera-panel">
+            <div className="camera-header">
+              <span className="camera-label"><span className="live-dot" />Live Camera</span>
+              <span className="loading-status"><Camera size={13} />MediaPipe Holistic</span>
+            </div>
 
-        {/* Feature Highlights */}
-        <motion.div 
-          id="features"
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-24 w-full"
-        >
-          {[
-            { icon: Zap, title: "Zero Latency", desc: "Runs entirely on your device's GPU/CPU. No server roundtrips, meaning translations happen in real-time." },
-            { icon: Shield, title: "100% Private", desc: "Your camera feed never leaves your device. Total privacy guaranteed by client-side processing." },
-            { icon: Cpu, title: "Edge AI", desc: "Utilizes MediaPipe for 21-point 3D hand tracking and a custom Random Forest model for high accuracy." }
-          ].map((feature, idx) => (
-            <div key={idx} className="bg-white/[0.02] border border-white/[0.05] p-6 rounded-3xl hover:bg-white/[0.04] transition-colors">
-              <div className="bg-white/10 w-12 h-12 rounded-2xl flex items-center justify-center mb-6">
-                <feature.icon className="w-6 h-6 text-indigo-400" />
+            <div className="camera-body">
+              <ASLDetector
+                onWordDetected={handleWordDetected}
+                onSignUpdate={handleSignUpdate}
+              />
+            </div>
+
+            <div className="camera-footer">
+              <div className="current-sign-strip">
+                <span className="current-sign-label">Detected</span>
+                {currentSign ? (
+                  <>
+                    <span className="current-sign-word">{currentSign.toUpperCase()}</span>
+                    <div className="confidence-bar-wrap">
+                      <div className="confidence-bar">
+                        {/* Commit progress bar — fills up as consecutive detections accumulate */}
+                        <div
+                          className="confidence-fill"
+                          style={{
+                            width: `${commitProgress * 100}%`,
+                            background: commitProgress >= 1
+                              ? 'var(--emerald)'
+                              : 'var(--grad-accent)',
+                            boxShadow: commitProgress >= 1
+                              ? '0 0 10px var(--success-glow)'
+                              : '0 0 8px var(--accent-glow)',
+                            transition: 'width 0.15s ease, background 0.2s ease',
+                          }}
+                        />
+                      </div>
+                      <div className="confidence-pct">
+                        {commitProgress >= 1 ? '✓ Locked' : `${confidence}% · ${Math.round(commitProgress * 100)}%`}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <span className="current-sign-word inactive">Hold sign to detect…</span>
+                )}
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">{feature.title}</h3>
-              <p className="text-gray-400 leading-relaxed">{feature.desc}</p>
+              {words.length > 0 && (
+                <button className="icon-btn danger" onClick={handleRemoveLast} title="Undo last word">
+                  <X size={14} />
+                </button>
+              )}
             </div>
-          ))}
-        </motion.div>
-
-        {/* Detector Component */}
-        <div id="detector" className="w-full scroll-mt-24 mb-32">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white mb-4">Live Translation</h2>
-            <p className="text-gray-400">Allow camera access to begin translating ASL to text instantly.</p>
-          </div>
-          <ASLDetector />
-        </div>
-
-        {/* How It Works / Gesture Guide */}
-        <motion.div 
-          id="how-it-works"
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="w-full max-w-4xl mx-auto scroll-mt-24"
-        >
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white mb-4">Functional Gestures</h2>
-            <p className="text-gray-400">Besides the standard A-Z alphabet, use these special gestures to control text.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {[
-              { gesture: "✌️", name: "Backspace", desc: "Show two fingers (peace sign) to delete the last character.", color: "text-red-400", bg: "bg-red-500/10" },
-              { gesture: "✋", name: "Clear All", desc: "Show an open palm to clear the entire sentence.", color: "text-yellow-400", bg: "bg-yellow-500/10" },
-              { gesture: "👌", name: "Space", desc: "Show the 'OK' sign to insert a space between words.", color: "text-green-400", bg: "bg-green-500/10" }
-            ].map((item, idx) => (
-              <div key={idx} className="bg-white/[0.02] border border-white/[0.05] p-8 rounded-3xl text-center">
-                <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-3xl mb-6 ${item.bg}`}>
-                  {item.gesture}
+          {/* ── RIGHT: Sentence Builder ── */}
+          <div className="right-panel">
+
+            {/* Sentence Output */}
+            <div className="card animate-in" style={{ animationDelay: '0.14s' }}>
+              <div className="card-header">
+                <span className="card-title"><Type size={14} className="card-icon" />Sentence Builder</span>
+                <div className="card-actions">
+                  {copied ? (
+                    <span className="copy-toast"><CheckCheck size={13} /> Copied!</span>
+                  ) : (
+                    <button className="icon-btn success" onClick={handleCopy} title="Copy" disabled={!sentence}>
+                      <Clipboard size={14} />
+                    </button>
+                  )}
+                  <button className="icon-btn" onClick={handleReVoice} title="Re-read" disabled={!sentence}>
+                    <Volume2 size={14} />
+                  </button>
+                  <button className="icon-btn danger" onClick={handleClear} title="Clear" disabled={!sentence}>
+                    <Trash2 size={14} />
+                  </button>
                 </div>
-                <h3 className={`text-xl font-bold mb-2 ${item.color}`}>{item.name}</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">{item.desc}</p>
               </div>
-            ))}
-          </div>
-          <div className="mt-8 text-center text-gray-500 text-sm">
-            * Note: Hold a gesture steadily for ~1 second (30 frames) for it to register.
-          </div>
-        </motion.div>
-        
-      </main>
 
-      {/* Footer */}
-      <footer className="border-t border-white/10 py-12 mt-20 relative z-10 bg-black/50">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <HandMetal className="w-5 h-5 text-indigo-400" />
-            <span className="font-bold text-lg text-white">GestureAI</span>
+              <div className="sentence-output">
+                {sentence
+                  ? <p className="sentence-text">{sentence}</p>
+                  : <p className="sentence-text empty">Your detected signs will appear here as a sentence…</p>
+                }
+                <div className="sentence-meta">
+                  <span className="word-count"><span>{wordCount}</span> word{wordCount !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+
+              <div className="sentence-actions">
+                <button className="action-btn action-btn-primary" onClick={handleReVoice} disabled={!sentence}>
+                  <Volume2 size={15} /> Speak Sentence
+                </button>
+                <button className="action-btn action-btn-secondary" onClick={handleCopy} disabled={!sentence}>
+                  <Clipboard size={15} /> Copy
+                </button>
+                <button className="action-btn action-btn-danger" onClick={handleClear} disabled={!sentence}>
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+
+            {/* Word chips */}
+            {words.length > 0 && (
+              <div className="card animate-in" style={{ animationDelay: '0.18s' }}>
+                <div className="card-header">
+                  <span className="card-title"><Zap size={14} className="card-icon" />Words ({wordCount})</span>
+                </div>
+                <div className="words-chips">
+                  {words.map((word, idx) => (
+                    <span key={idx} className="word-chip">
+                      {word}
+                      <button className="chip-remove" onClick={() => handleRemove(idx)}>×</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div className="card animate-in" style={{ animationDelay: '0.22s' }}>
+              <div className="card-header">
+                <span className="card-title"><BarChart2 size={14} className="card-icon" />Session Stats</span>
+              </div>
+              <div className="stats-grid">
+                <div className="stat-cell">
+                  <span className="stat-value">{wordCount}</span>
+                  <span className="stat-label">Words Built</span>
+                </div>
+                <div className="stat-cell">
+                  <span className="stat-value" style={{ color: 'var(--accent)' }}>
+                    {confidence > 0 ? `${confidence}%` : '—'}
+                  </span>
+                  <span className="stat-label">Confidence</span>
+                </div>
+              </div>
+            </div>
+
           </div>
-          <p className="text-gray-500 text-sm">
-            © {new Date().getFullYear()} Built with Next.js, Tailwind, and MediaPipe.
-          </p>
         </div>
-      </footer>
+      </div>
     </div>
   );
 }
