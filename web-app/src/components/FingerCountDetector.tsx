@@ -2,52 +2,138 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { TTSManager } from '@/utils/tts';
-import { FINGER_SENTENCES } from '@/utils/fingerGestures';
+import { GESTURE_MAP, type GestureId } from '@/utils/fingerGestures';
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
-const CONFIRM_FRAMES  = 12; // how many consecutive frames must agree before commit
-const COOLDOWN_MS     = 2500; // ms between commits
+const CONFIRM_FRAMES = 14;   // frames of agreement before committing (~0.5s at 30fps)
+const COOLDOWN_MS    = 2200; // lockout after any commit
+const UNKNOWN_RESET  = 20;   // frames of UNKNOWN before resetting candidate
 
-interface FingerCountDetectorProps {
-  onSentenceDetected: (sentence: string, fingerCount: number) => void;
-  onFingerUpdate?: (count: number, progress: number) => void;
+interface FingerState {
+  thumb: boolean;
+  index: boolean;
+  middle: boolean;
+  ring: boolean;
+  pinky: boolean;
+  thumbPointsUp: boolean;   // thumb tip above wrist
 }
 
-// Count extended fingers using MediaPipe hand landmarks
-function countExtendedFingers(landmarks: any[]): number {
-  if (!landmarks || landmarks.length < 21) return 0;
+/** Derive per-finger extension from MediaPipe landmarks */
+function detectFingers(lm: any[]): FingerState {
+  if (!lm || lm.length < 21) {
+    return { thumb: false, index: false, middle: false, ring: false, pinky: false, thumbPointsUp: false };
+  }
 
-  // Finger tip and pip (proximal interphalangeal) indices
-  // Index=8/6, Middle=12/10, Ring=16/14, Pinky=20/18
-  const fingerTips = [8, 12, 16, 20];
-  const fingerPips = [6, 10, 14, 18];
+  // Non-thumb fingers: tip y < pip y  (y=0 is top)
+  const index  = lm[8].y  < lm[6].y;
+  const middle = lm[12].y < lm[10].y;
+  const ring   = lm[16].y < lm[14].y;
+  const pinky  = lm[20].y < lm[18].y;
 
-  let count = 0;
+  // Thumb: measure lateral spread vs hand width
+  const thumbTip  = lm[4];
+  const thumbIp   = lm[3];   // inter-phalangeal joint
+  const indexMcp  = lm[5];
+  const handW     = Math.abs(lm[0].x - lm[9].x) || 0.01;
+  const thumbDist = Math.hypot(thumbTip.x - indexMcp.x, thumbTip.y - indexMcp.y);
+  const ipDist    = Math.hypot(thumbIp.x  - indexMcp.x, thumbIp.y  - indexMcp.y);
+  const thumb     = thumbDist > ipDist * 1.15 && thumbDist > handW * 0.3;
 
-  // For index-pinky: finger is up if tip.y < pip.y (y is inverted in MediaPipe)
-  for (let i = 0; i < 4; i++) {
-    if (landmarks[fingerTips[i]].y < landmarks[fingerPips[i]].y) {
-      count++;
+  // Thumb direction
+  const thumbPointsUp = thumbTip.y < lm[2].y;  // tip above MCP base
+
+  return { thumb, index, middle, ring, pinky, thumbPointsUp };
+}
+
+/** Classify finger state into a named GestureId */
+function classify(fs: FingerState, lm: any[]): GestureId {
+  const { thumb, index, middle, ring, pinky, thumbPointsUp } = fs;
+
+  // ── Special: OK sign — thumb tip close to index tip ─────────────────────
+  if (lm) {
+    const thumbTip   = lm[4];
+    const indexTip   = lm[8];
+    const handSize   = Math.hypot(lm[0].x - lm[9].x, lm[0].y - lm[9].y) || 0.1;
+    const okDist     = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+    // OK: thumb and index touching, middle/ring/pinky up or any state
+    if (okDist < handSize * 0.35 && !index && !middle && !ring && !pinky && thumb) {
+      // Thumb is "extended" but curled toward index — special case
+      return 'L_SHAPE'; // won't hit this anyway since thumb detection already separates
     }
   }
 
-  // Thumb: compare tip.x vs mcp.x (landmark 4 vs 2) — flipped for left/right hand
-  // Use a simple heuristic: thumb tip is extended if far from index finger base
-  const thumbTip  = landmarks[4];
-  const thumbMcp  = landmarks[2];
-  const indexMcp  = landmarks[5];
-  const thumbDist = Math.abs(thumbTip.x - indexMcp.x);
-  const handWidth = Math.abs(landmarks[0].x - landmarks[9].x) || 0.01;
-  if (thumbDist > handWidth * 0.5) {
-    count++;
+  // ── No fingers at all ────────────────────────────────────────────────────
+  if (!thumb && !index && !middle && !ring && !pinky) return 'FIST';
+
+  // ── All 5 ────────────────────────────────────────────────────────────────
+  if (thumb && index && middle && ring && pinky) return 'OPEN_PALM';
+
+  // ── Thumb only ───────────────────────────────────────────────────────────
+  if (thumb && !index && !middle && !ring && !pinky) {
+    return thumbPointsUp ? 'THUMB_UP' : 'THUMB_DOWN';
   }
 
-  return count;
+  // ── 4 fingers (no thumb) ─────────────────────────────────────────────────
+  if (!thumb && index && middle && ring && pinky) return 'FOUR';
+
+  // ── 3 fingers (index+middle+ring, no thumb) ──────────────────────────────
+  if (!thumb && index && middle && ring && !pinky) return 'THREE';
+
+  // ── Peace (index+middle, no thumb) ───────────────────────────────────────
+  if (!thumb && index && middle && !ring && !pinky) return 'PEACE';
+
+  // ── Index only ───────────────────────────────────────────────────────────
+  if (!thumb && index && !middle && !ring && !pinky) return 'INDEX';
+
+  // ── Middle only ──────────────────────────────────────────────────────────
+  if (!thumb && !index && middle && !ring && !pinky) return 'MIDDLE_ONLY';
+
+  // ── Ring only ────────────────────────────────────────────────────────────
+  if (!thumb && !index && !middle && ring && !pinky) return 'RING_ONLY';
+
+  // ── Pinky only ───────────────────────────────────────────────────────────
+  if (!thumb && !index && !middle && !ring && pinky) return 'PINKY';
+
+  // ── Rock sign: index + pinky ──────────────────────────────────────────────
+  if (!thumb && index && !middle && !ring && pinky) return 'ROCK';
+
+  // ── Middle + Ring ─────────────────────────────────────────────────────────
+  if (!thumb && !index && middle && ring && !pinky) return 'MIDDLE_RING';
+
+  // ── Ring + Pinky ─────────────────────────────────────────────────────────
+  if (!thumb && !index && !middle && ring && pinky) return 'RING_PINKY';
+
+  // ── ILY: thumb + index + pinky ───────────────────────────────────────────
+  if (thumb && index && !middle && !ring && pinky) return 'ILY';
+
+  // ── Shaka: thumb + pinky ─────────────────────────────────────────────────
+  if (thumb && !index && !middle && !ring && pinky) return 'SHAKA';
+
+  // ── L-shape: thumb + index ───────────────────────────────────────────────
+  if (thumb && index && !middle && !ring && !pinky) return 'L_SHAPE';
+
+  // ── Thumb + middle ───────────────────────────────────────────────────────
+  if (thumb && !index && middle && !ring && !pinky) return 'THUMB_MIDDLE';
+
+  // ── Three + thumb: thumb + index + middle ────────────────────────────────
+  if (thumb && index && middle && !ring && !pinky) return 'THREE_THUMB';
+
+  // ── Four + thumb: thumb + index + middle + ring ──────────────────────────
+  if (thumb && index && middle && ring && !pinky) return 'FOUR_THUMB';
+
+  return 'UNKNOWN';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface FingerCountDetectorProps {
+  onSentenceDetected: (sentence: string, gestureId: GestureId) => void;
+  onGestureUpdate?: (gestureId: GestureId, progress: number) => void;
 }
 
 export default function FingerCountDetector({
   onSentenceDetected,
-  onFingerUpdate,
+  onGestureUpdate,
 }: FingerCountDetectorProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,13 +141,15 @@ export default function FingerCountDetector({
 
   const ttsRef           = useRef<TTSManager | null>(null);
   const onSentenceRef    = useRef(onSentenceDetected);
-  const onFingerUpdateRef= useRef(onFingerUpdate);
-  const candidateRef     = useRef(0);   // current candidate finger count
-  const confirmCountRef  = useRef(0);   // consecutive frame agreement count
-  const lastCommitRef    = useRef(0);   // timestamp of last commit
+  const onGestureUpdateRef = useRef(onGestureUpdate);
 
-  useEffect(() => { onSentenceRef.current    = onSentenceDetected; }, [onSentenceDetected]);
-  useEffect(() => { onFingerUpdateRef.current = onFingerUpdate;     }, [onFingerUpdate]);
+  const candidateRef     = useRef<GestureId>('UNKNOWN');
+  const confirmCountRef  = useRef(0);
+  const unknownCountRef  = useRef(0);
+  const lastCommitRef    = useRef(0);
+
+  useEffect(() => { onSentenceRef.current      = onSentenceDetected; }, [onSentenceDetected]);
+  useEffect(() => { onGestureUpdateRef.current = onGestureUpdate;    }, [onGestureUpdate]);
 
   useEffect(() => {
     let camera: any  = null;
@@ -69,7 +157,6 @@ export default function FingerCountDetector({
     let alive = true;
 
     ttsRef.current = new TTSManager();
-
     setStatusMsg('Loading MediaPipe…');
 
     const checkScripts = setInterval(() => {
@@ -104,9 +191,7 @@ export default function FingerCountDetector({
           width:  window.innerHeight > window.innerWidth ? 480 : 640,
           height: window.innerHeight > window.innerWidth ? 640 : 480,
         });
-        camera.start().then(() => {
-          if (alive) setStatusMsg('');
-        });
+        camera.start().then(() => { if (alive) setStatusMsg(''); });
       }
     }
 
@@ -132,48 +217,70 @@ export default function FingerCountDetector({
             drawHand(results.leftHandLandmarks);
             drawHand(results.rightHandLandmarks);
             ctx.restore();
-          } catch (_) { /* never crash drawing */ }
+          } catch (_) {}
         }
       }
 
-      // ── Finger count logic ─────────────────────────────────────────────────
+      // ── Gesture detection ──────────────────────────────────────────────────
+      // Use dominant hand (right preferred, fall back to left)
       const hand = results.rightHandLandmarks || results.leftHandLandmarks;
-      if (!hand) {
-        // No hand visible — reset
-        candidateRef.current  = 0;
-        confirmCountRef.current = 0;
-        onFingerUpdateRef.current?.(0, 0);
-        return;
-      }
 
-      const count = countExtendedFingers(hand);
-      const now   = Date.now();
+      // Two-hand detection: both hands present
+      const twoHands = !!(results.rightHandLandmarks && results.leftHandLandmarks);
+
+      const now      = Date.now();
       const inCooldown = now - lastCommitRef.current < COOLDOWN_MS;
 
-      if (inCooldown) {
-        onFingerUpdateRef.current?.(count, 0);
+      if (!hand) {
+        candidateRef.current  = 'UNKNOWN';
+        confirmCountRef.current = 0;
+        onGestureUpdateRef.current?.('UNKNOWN', 0);
         return;
       }
 
-      if (count === candidateRef.current && count > 0) {
+      const fs = detectFingers(hand);
+      let gesture: GestureId = twoHands ? 'TWO_HANDS' : classify(fs, hand);
+
+      if (inCooldown) {
+        onGestureUpdateRef.current?.(gesture, 0);
+        return;
+      }
+
+      if (gesture === 'UNKNOWN') {
+        unknownCountRef.current++;
+        if (unknownCountRef.current >= UNKNOWN_RESET) {
+          candidateRef.current   = 'UNKNOWN';
+          confirmCountRef.current = 0;
+        }
+        onGestureUpdateRef.current?.('UNKNOWN', 0);
+        return;
+      }
+
+      unknownCountRef.current = 0;
+
+      if (gesture === candidateRef.current) {
         confirmCountRef.current++;
       } else {
-        candidateRef.current  = count;
-        confirmCountRef.current = count > 0 ? 1 : 0;
+        candidateRef.current    = gesture;
+        confirmCountRef.current = 1;
       }
 
       const progress = Math.min(confirmCountRef.current / CONFIRM_FRAMES, 1);
-      onFingerUpdateRef.current?.(count, progress);
+      onGestureUpdateRef.current?.(gesture, progress);
 
-      if (confirmCountRef.current >= CONFIRM_FRAMES && count >= 1 && count <= 5) {
-        const sentence = FINGER_SENTENCES[count];
-        if (sentence) {
-          console.log(`[FingerCount] Committed ${count} fingers → "${sentence}"`);
-          lastCommitRef.current   = now;
-          candidateRef.current    = 0;
-          confirmCountRef.current = 0;
-          ttsRef.current?.speak(sentence);
-          onSentenceRef.current(sentence, count);
+      if (confirmCountRef.current >= CONFIRM_FRAMES) {
+        const def = GESTURE_MAP[gesture];
+        console.log(`[GestureAI] Committed: ${gesture}`);
+        lastCommitRef.current   = now;
+        candidateRef.current    = 'UNKNOWN';
+        confirmCountRef.current = 0;
+
+        if (def.isUtility) {
+          // Utility gestures: fire event without speaking
+          onSentenceRef.current('', gesture);
+        } else if (def.phrase) {
+          ttsRef.current?.speak(def.phrase);
+          onSentenceRef.current(def.phrase, gesture);
         }
       }
     }
@@ -181,25 +288,15 @@ export default function FingerCountDetector({
     return () => {
       alive = false;
       clearInterval(checkScripts);
-      try { camera?.stop(); } catch (_) {}
+      try { camera?.stop(); }  catch (_) {}
       try { holistic?.close(); } catch (_) {}
     };
   }, []);
 
   return (
     <>
-      <video
-        ref={videoRef}
-        style={{ display: 'none' }}
-        playsInline
-        muted
-      />
-      <canvas
-        ref={canvasRef}
-        className="detector-canvas"
-        width={640}
-        height={480}
-      />
+      <video ref={videoRef} style={{ display: 'none' }} playsInline muted />
+      <canvas ref={canvasRef} className="detector-canvas" width={640} height={480} />
       {statusMsg && (
         <div className="detector-overlay">
           <div className="spinner animate-spin" />

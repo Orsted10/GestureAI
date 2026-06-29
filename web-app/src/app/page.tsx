@@ -6,7 +6,7 @@ import {
   Camera, Clipboard, Volume2, Trash2, ExternalLink,
   CheckCheck, Type, Zap, X, BarChart2, Hand, Radio,
 } from 'lucide-react';
-import { FINGER_SENTENCES } from '@/utils/fingerGestures';
+import { GESTURE_MAP, GESTURE_LIST, type GestureId } from '@/utils/fingerGestures';
 
 // ── Lazy-load both detectors (client-only, heavy) ─────────────────────────────
 const ASLDetector = dynamic(() => import('@/components/ASLDetector'), {
@@ -29,21 +29,23 @@ const FingerCountDetector = dynamic(() => import('@/components/FingerCountDetect
   ),
 });
 
-// ── TTS helper — TextToSpeech imported dynamically to avoid SSR crash ─────────
+// ── TTS helper — dynamic import avoids SSR crash ──────────────────────────────
 async function speakText(text: string) {
   if (!text) return;
   try {
     const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
-    await TextToSpeech.speak({ text, lang: 'en-US', rate: 0.9, pitch: 1.0, volume: 1.0 });
+    await TextToSpeech.speak({ text, lang: 'en-US', rate: 0.88, pitch: 0.92, volume: 1.0 });
   } catch {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
+    const utter  = new SpeechSynthesisUtterance(text);
+    utter.lang   = 'en-US';
+    utter.rate   = 0.88;
+    utter.pitch  = 0.92;
     const voices = window.speechSynthesis.getVoices();
-    const preferred = voices.find(v => /samantha|karen|google uk|zira/i.test(v.name))
-      || voices.find(v => v.lang.startsWith('en'));
-    if (preferred) utter.voice = preferred;
-    utter.rate = 0.92; utter.pitch = 1.05;
+    const best   = voices.find(v => /google us english|samantha|karen|google/i.test(v.name))
+                || voices.find(v => v.lang.startsWith('en'));
+    if (best) utter.voice = best;
     window.speechSynthesis.speak(utter);
   }
 }
@@ -51,17 +53,19 @@ async function speakText(text: string) {
 type AppMode = 'asl' | 'custom';
 
 export default function Home() {
-  // ── Shared state ─────────────────────────────────────────────────────────
   const [mode, setMode]               = useState<AppMode>('asl');
   const [words, setWords]             = useState<string[]>([]);
+
+  // ASL mode state
   const [currentSign, setCurrentSign]  = useState('');
   const [confidence, setConfidence]    = useState(0);
   const [commitProgress, setCommitProgress] = useState(0);
-  const [copied, setCopied]            = useState(false);
 
-  // Custom gesture mode state
-  const [fingerCount, setFingerCount]  = useState(0);
-  const [fingerProgress, setFingerProgress] = useState(0);
+  // Custom gesture state
+  const [activeGesture, setActiveGesture]    = useState<GestureId>('UNKNOWN');
+  const [gestureProgress, setGestureProgress] = useState(0);
+
+  const [copied, setCopied] = useState(false);
 
   // ── ASL mode handlers ─────────────────────────────────────────────────────
   const handleWordDetected = useCallback((word: string) => {
@@ -76,17 +80,29 @@ export default function Home() {
     setCommitProgress(progress);
   }, []);
 
-  // ── Custom gesture mode handlers ──────────────────────────────────────────
-  const handleSentenceDetected = useCallback((sentence: string, count: number) => {
-    setFingerCount(count);
-    setFingerProgress(0);
-    // Add each word of the sentence to the sentence builder
-    setWords(prev => [...prev, sentence]);
+  // ── Custom gesture handlers ───────────────────────────────────────────────
+  const handleSentenceDetected = useCallback((phrase: string, gestureId: GestureId) => {
+    setGestureProgress(0);
+
+    // Utility gestures — action only, no TTS
+    if (gestureId === 'FIST') {
+      setWords(prev => prev.slice(0, -1));
+      return;
+    }
+    if (gestureId === 'TWO_HANDS') {
+      setWords([]);
+      return;
+    }
+
+    // Phrase gesture — add to builder (TTS is handled inside FingerCountDetector)
+    if (phrase) {
+      setWords(prev => [...prev, phrase]);
+    }
   }, []);
 
-  const handleFingerUpdate = useCallback((count: number, progress: number) => {
-    setFingerCount(count);
-    setFingerProgress(progress);
+  const handleGestureUpdate = useCallback((gestureId: GestureId, progress: number) => {
+    setActiveGesture(gestureId);
+    setGestureProgress(progress);
   }, []);
 
   // ── Shared controls ───────────────────────────────────────────────────────
@@ -107,12 +123,12 @@ export default function Home() {
 
   const switchMode = (m: AppMode) => {
     setMode(m);
-    setCurrentSign('');
-    setConfidence(0);
-    setCommitProgress(0);
-    setFingerCount(0);
-    setFingerProgress(0);
+    setCurrentSign(''); setConfidence(0); setCommitProgress(0);
+    setActiveGesture('UNKNOWN'); setGestureProgress(0);
   };
+
+  // Current gesture definition (for display)
+  const activeDef = GESTURE_MAP[activeGesture] ?? GESTURE_MAP.UNKNOWN;
 
   return (
     <div className="app-wrapper">
@@ -137,17 +153,11 @@ export default function Home() {
 
         {/* ── MODE TOGGLE ── */}
         <div className="mode-toggle animate-in" style={{ animationDelay: '0.04s' }}>
-          <button
-            className={`mode-btn${mode === 'asl' ? ' active' : ''}`}
-            onClick={() => switchMode('asl')}
-          >
+          <button className={`mode-btn${mode === 'asl' ? ' active' : ''}`} onClick={() => switchMode('asl')}>
             <Radio size={15} />
             ASL Word Detection
           </button>
-          <button
-            className={`mode-btn${mode === 'custom' ? ' active' : ''}`}
-            onClick={() => switchMode('custom')}
-          >
+          <button className={`mode-btn${mode === 'custom' ? ' active' : ''}`} onClick={() => switchMode('custom')}>
             <Hand size={15} />
             Custom Gestures
           </button>
@@ -156,31 +166,24 @@ export default function Home() {
         {/* ── MAIN GRID ── */}
         <div className="main-grid animate-in" style={{ animationDelay: '0.08s' }}>
 
-          {/* ── LEFT: Camera ── */}
+          {/* ── Camera Panel ── */}
           <div className="camera-panel">
             <div className="camera-header">
               <span className="camera-label"><span className="live-dot" />Live Camera</span>
               <span className="loading-status">
                 <Camera size={13} />
-                {mode === 'asl' ? 'MediaPipe Holistic' : 'Finger Counting'}
+                {mode === 'asl' ? 'MediaPipe Holistic' : 'Gesture Detection'}
               </span>
             </div>
 
             <div className="camera-body">
-              {mode === 'asl' ? (
-                <ASLDetector
-                  onWordDetected={handleWordDetected}
-                  onSignUpdate={handleSignUpdate}
-                />
-              ) : (
-                <FingerCountDetector
-                  onSentenceDetected={handleSentenceDetected}
-                  onFingerUpdate={handleFingerUpdate}
-                />
-              )}
+              {mode === 'asl'
+                ? <ASLDetector onWordDetected={handleWordDetected} onSignUpdate={handleSignUpdate} />
+                : <FingerCountDetector onSentenceDetected={handleSentenceDetected} onGestureUpdate={handleGestureUpdate} />
+              }
             </div>
 
-            {/* Camera footer — adapts to mode */}
+            {/* Camera footer */}
             <div className="camera-footer">
               {mode === 'asl' ? (
                 <div className="current-sign-strip">
@@ -190,15 +193,12 @@ export default function Home() {
                       <span className="current-sign-word">{currentSign.toUpperCase()}</span>
                       <div className="confidence-bar-wrap">
                         <div className="confidence-bar">
-                          <div
-                            className="confidence-fill"
-                            style={{
-                              width: `${commitProgress * 100}%`,
-                              background: commitProgress >= 1 ? 'var(--emerald)' : 'var(--grad-accent)',
-                              boxShadow: commitProgress >= 1 ? '0 0 10px var(--success-glow)' : '0 0 8px var(--accent-glow)',
-                              transition: 'width 0.15s ease, background 0.2s ease',
-                            }}
-                          />
+                          <div className="confidence-fill" style={{
+                            width: `${commitProgress * 100}%`,
+                            background: commitProgress >= 1 ? 'var(--emerald)' : 'var(--grad-accent)',
+                            boxShadow: commitProgress >= 1 ? '0 0 10px var(--success-glow)' : '0 0 8px var(--accent-glow)',
+                            transition: 'width 0.15s ease, background 0.2s ease',
+                          }} />
                         </div>
                         <div className="confidence-pct">
                           {commitProgress >= 1 ? '✓ Locked' : `${confidence}% · ${Math.round(commitProgress * 100)}%`}
@@ -210,34 +210,30 @@ export default function Home() {
                   )}
                 </div>
               ) : (
-                /* Custom gesture footer */
                 <div className="current-sign-strip">
-                  <span className="current-sign-label">Fingers</span>
-                  {fingerCount > 0 ? (
+                  <span className="current-sign-label">Pose</span>
+                  {activeGesture !== 'UNKNOWN' ? (
                     <>
-                      <span className="current-sign-word finger-count">
-                        {'☝️'.repeat(fingerCount)}
-                        <span className="finger-num">{fingerCount}</span>
+                      <span className="current-sign-word">
+                        <span style={{ fontSize: '1.1em' }}>{activeDef.emoji}</span>{' '}
+                        {activeDef.label}
                       </span>
                       <div className="confidence-bar-wrap">
                         <div className="confidence-bar">
-                          <div
-                            className="confidence-fill"
-                            style={{
-                              width: `${fingerProgress * 100}%`,
-                              background: fingerProgress >= 1 ? 'var(--emerald)' : '#f59e0b',
-                              boxShadow: fingerProgress >= 1 ? '0 0 10px var(--success-glow)' : '0 0 8px rgba(245,158,11,0.5)',
-                              transition: 'width 0.12s ease, background 0.2s ease',
-                            }}
-                          />
+                          <div className="confidence-fill" style={{
+                            width: `${gestureProgress * 100}%`,
+                            background: gestureProgress >= 1 ? 'var(--emerald)' : '#f59e0b',
+                            boxShadow: gestureProgress >= 1 ? '0 0 10px var(--success-glow)' : '0 0 8px rgba(245,158,11,0.5)',
+                            transition: 'width 0.1s ease, background 0.2s ease',
+                          }} />
                         </div>
                         <div className="confidence-pct">
-                          {fingerProgress >= 1 ? '✓ Sent!' : `Hold… ${Math.round(fingerProgress * 100)}%`}
+                          {gestureProgress >= 1 ? '✓ Done!' : `Hold… ${Math.round(gestureProgress * 100)}%`}
                         </div>
                       </div>
                     </>
                   ) : (
-                    <span className="current-sign-word inactive">Show 1–5 fingers…</span>
+                    <span className="current-sign-word inactive">Show a gesture…</span>
                   )}
                 </div>
               )}
@@ -249,25 +245,50 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ── RIGHT PANEL ── */}
+          {/* ── Right Panel ── */}
           <div className="right-panel">
 
-            {/* Custom gesture cheat-sheet (only in custom mode) */}
+            {/* Gesture cheat-sheet */}
             {mode === 'custom' && (
               <div className="card animate-in gesture-legend" style={{ animationDelay: '0.10s' }}>
                 <div className="card-header">
                   <span className="card-title"><Hand size={14} className="card-icon" />Gesture Map</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{GESTURE_LIST.length - 2} phrases · 2 actions</span>
                 </div>
                 <div className="gesture-list">
-                  {Object.entries(FINGER_SENTENCES).map(([n, sentence]) => (
-                    <div key={n} className="gesture-row">
-                      <span className="gesture-fingers">
-                        {n === '1' ? '☝️' : n === '2' ? '✌️' : n === '3' ? '🤟' : n === '4' ? '🖖' : '🖐️'}
-                        <span className="gesture-num">{n}</span>
-                      </span>
-                      <span className="gesture-sentence">{sentence}</span>
-                    </div>
-                  ))}
+                  {/* Utility header */}
+                  <div className="gesture-section-label">⚙️ Actions (silent)</div>
+                  {GESTURE_LIST.filter(id => GESTURE_MAP[id].isUtility && id !== 'UNKNOWN').map(id => {
+                    const g = GESTURE_MAP[id];
+                    return (
+                      <div key={id} className={`gesture-row utility-row${activeGesture === id ? ' gesture-row-active' : ''}`}>
+                        <span className="gesture-fingers">{g.emoji}</span>
+                        <div className="gesture-info">
+                          <span className="gesture-name">{g.label}</span>
+                          <span className="gesture-desc">{g.description}</span>
+                        </div>
+                        <span className="gesture-action-badge">
+                          {id === 'FIST' ? '⌫ Del' : '🗑 Clear'}
+                        </span>
+                      </div>
+                    );
+                  })}
+
+                  {/* Phrase gestures */}
+                  <div className="gesture-section-label">💬 Phrases (spoken)</div>
+                  {GESTURE_LIST.filter(id => !GESTURE_MAP[id].isUtility).map(id => {
+                    const g = GESTURE_MAP[id];
+                    return (
+                      <div key={id} className={`gesture-row${activeGesture === id ? ' gesture-row-active' : ''}`}>
+                        <span className="gesture-fingers">{g.emoji}</span>
+                        <div className="gesture-info">
+                          <span className="gesture-name">{g.label}</span>
+                          <span className="gesture-desc">{g.description}</span>
+                        </div>
+                        <span className="gesture-sentence">"{g.phrase}"</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -341,13 +362,15 @@ export default function Home() {
               <div className="stats-grid">
                 <div className="stat-cell">
                   <span className="stat-value">{wordCount}</span>
-                  <span className="stat-label">Words Built</span>
+                  <span className="stat-label">Phrases</span>
                 </div>
                 <div className="stat-cell">
                   <span className="stat-value" style={{ color: 'var(--accent)' }}>
-                    {mode === 'asl' ? (confidence > 0 ? `${confidence}%` : '—') : (fingerCount > 0 ? `${fingerCount}✋` : '—')}
+                    {mode === 'asl'
+                      ? (confidence > 0 ? `${confidence}%` : '—')
+                      : (activeGesture !== 'UNKNOWN' ? activeDef.emoji : '—')}
                   </span>
-                  <span className="stat-label">{mode === 'asl' ? 'Confidence' : 'Fingers'}</span>
+                  <span className="stat-label">{mode === 'asl' ? 'Confidence' : 'Last Pose'}</span>
                 </div>
               </div>
             </div>
