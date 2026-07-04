@@ -182,6 +182,7 @@ export default function DetectorEngine({
   const aslSignsRef        = useRef<Record<string, string>>({});
   const islSignsRef        = useRef<Record<string, string>>({});
   const modeRef            = useRef(mode);
+  const outputModeRef      = useRef(outputMode);
 
   // Buffer state
   const frameBufferRef     = useRef<number[][][]>([]);
@@ -201,7 +202,10 @@ export default function DetectorEngine({
   const heurLastCommit   = useRef(0);
 
   // Keep latest callbacks/mode
-  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { 
+    modeRef.current = mode; 
+    outputModeRef.current = outputMode;
+  }, [mode, outputMode]);
 
   useEffect(() => {
     let camera: any  = null;
@@ -439,7 +443,7 @@ export default function DetectorEngine({
       if (def.isUtility) {
         onSentenceDetected('', gesture as any);
       } else {
-        const textToSpeak = (outputMode === 'sentence' && def.sentence) ? def.sentence : (def.phrase || def.label);
+        const textToSpeak = (outputModeRef.current === 'sentence' && def.sentence) ? def.sentence : (def.phrase || def.label);
         if (textToSpeak) {
           ttsRef.current?.speak(textToSpeak);
           onSentenceDetected(textToSpeak, gesture as any);

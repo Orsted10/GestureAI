@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import { useState, useCallback, useEffect } from 'react';
 import {
   Camera, Clipboard, Volume2, Trash2, ExternalLink,
-  CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap
+  CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap, MessageSquare
 } from 'lucide-react';
 import { GESTURE_MAP, GESTURE_LIST, type GestureId } from '@/utils/fingerGestures';
 import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
@@ -201,12 +201,15 @@ export default function Home() {
           </div>
         </header>
 
-        {/* ── MODE TOGGLE ── */}
-        <div className="mode-toggle animate-in" style={{ animationDelay: '0.04s' }}>
-          <button className={`mode-btn${mode === 'asl' ? ' active' : ''}`} onClick={() => switchMode('asl')}>
-            <Radio size={15} />
-            ASL
-          </button>
+        {/* ── MODE TOGGLES ── */}
+        <div className="top-controls animate-in" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', alignItems: 'center', animationDelay: '0.04s' }}>
+          
+          {/* Main App Mode Toggle */}
+          <div className="mode-toggle">
+            <button className={`mode-btn${mode === 'asl' ? ' active' : ''}`} onClick={() => switchMode('asl')}>
+              <Radio size={15} />
+              ASL
+            </button>
           <button className={`mode-btn${mode === 'isl' ? ' active' : ''}`} onClick={() => switchMode('isl')}>
             <Radio size={15} />
             ISL (Indian)
@@ -217,15 +220,35 @@ export default function Home() {
           </button>
 
           <div className="vertical-divider" />
-          
-          <button 
-            className={`mode-btn learn-btn${isLearnMode ? ' active' : ''}`} 
-            onClick={() => setIsLearnMode(!isLearnMode)}
-            disabled={mode === 'custom'}
-          >
-            <GraduationCap size={15} />
-            Learn Mode
-          </button>
+                    <button 
+              className={`mode-btn learn-btn${isLearnMode ? ' active' : ''}`} 
+              onClick={() => setIsLearnMode(!isLearnMode)}
+              disabled={mode === 'custom'}
+            >
+              <GraduationCap size={15} />
+              Learn Mode
+            </button>
+          </div>
+
+          {/* Output Mode Toggle (only for heuristic modes) */}
+          {mode !== 'asl' && !isLearnMode && (
+            <div className="mode-toggle" style={{ transform: 'scale(0.9)', marginTop: '-0.2rem' }}>
+              <button 
+                className={`mode-btn${outputMode === 'word' ? ' active' : ''}`} 
+                onClick={() => setOutputMode('word')}
+              >
+                <Type size={14} />
+                Word Mode
+              </button>
+              <button 
+                className={`mode-btn${outputMode === 'sentence' ? ' active' : ''}`} 
+                onClick={() => setOutputMode('sentence')}
+              >
+                <MessageSquare size={14} />
+                Sentence Mode
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── MAIN GRID ── */}
@@ -404,15 +427,7 @@ export default function Home() {
             <div className="card animate-in" style={{ animationDelay: '0.14s' }}>
               <div className="card-header">
                 <span className="card-title"><Type size={14} className="card-icon" />Sentence Builder</span>
-                <div className="card-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select 
-                    value={outputMode} 
-                    onChange={e => setOutputMode(e.target.value as 'word' | 'sentence')}
-                    style={{ background: 'var(--bg-subtle)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.75rem', outline: 'none' }}
-                  >
-                    <option value="word">Word Mode</option>
-                    <option value="sentence">Sentence Mode</option>
-                  </select>
+                <div className="card-actions">
                   {copied ? (
                     <span className="copy-toast"><CheckCheck size={13} /> Copied!</span>
                   ) : (
