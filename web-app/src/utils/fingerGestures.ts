@@ -57,80 +57,80 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
   // ── Finger count (no thumb) ───────────────────────────────────────────────
   INDEX: {
     id: 'INDEX', label: '1 Finger (Index)', emoji: '☝️',
-    phrase: 'Hello!', isUtility: false,
+    phrase: 'Hello there, how are you?', isUtility: false,
     description: 'Raise ONLY your index finger. Curl all others.',
   },
   PEACE: {
     id: 'PEACE', label: 'Peace Sign (V)', emoji: '✌️',
-    phrase: 'How are you?', isUtility: false,
+    phrase: 'Are you doing okay today?', isUtility: false,
     description: 'Index + middle up. Thumb and other fingers curled.',
   },
   THREE: {
     id: 'THREE', label: '3 Fingers', emoji: '🖖',
-    phrase: 'I am', isUtility: false,
+    phrase: 'I am feeling really good today.', isUtility: false,
     description: 'Index + middle + ring up. Thumb and pinky curled.',
   },
   FOUR: {
     id: 'FOUR', label: '4 Fingers (no thumb)', emoji: '🖖',
-    phrase: 'going to', isUtility: false,
+    phrase: 'I am going to leave now.', isUtility: false,
     description: 'All 4 fingers up — index to pinky. Thumb curled IN.',
   },
   OPEN_PALM: {
     id: 'OPEN_PALM', label: 'Open Palm (all 5)', emoji: '🖐️',
-    phrase: 'Thank you!', isUtility: false,
+    phrase: 'Thank you so much for your help!', isUtility: false,
     description: 'All 5 fingers spread open including thumb.',
   },
 
   // ── Thumb variants ────────────────────────────────────────────────────────
   THUMB_UP: {
     id: 'THUMB_UP', label: 'Thumbs Up', emoji: '👍',
-    phrase: 'Yes,', isUtility: false,
+    phrase: 'Yes, I completely agree with you.', isUtility: false,
     description: 'ONLY thumb extended and pointing UP. All fingers curled.',
   },
   THUMB_DOWN: {
     id: 'THUMB_DOWN', label: 'Thumbs Down', emoji: '👎',
-    phrase: 'No,', isUtility: false,
+    phrase: 'No, I do not think that is correct.', isUtility: false,
     description: 'ONLY thumb extended and pointing DOWN. All fingers curled.',
   },
 
   // ── Single isolated finger ────────────────────────────────────────────────
   PINKY: {
     id: 'PINKY', label: 'Pinky Only', emoji: '🤙',
-    phrase: 'I need', isUtility: false,
+    phrase: 'I need some assistance please.', isUtility: false,
     description: 'Raise ONLY your pinky finger. All others curled.',
   },
 
   // ── Multi-finger combos (no thumb) ───────────────────────────────────────
   ROCK: {
-    id: 'ROCK', label: 'Rock / Metal \m/', emoji: '🤘',
-    phrase: 'Please,', isUtility: false,
+    id: 'ROCK', label: 'Rock / Metal \\m/', emoji: '🤘',
+    phrase: 'Please wait a moment for me.', isUtility: false,
     description: 'Index + pinky up. Middle + ring curled down. No thumb.',
   },
 
   // ── Thumb + finger combos ─────────────────────────────────────────────────
   L_SHAPE: {
     id: 'L_SHAPE', label: 'L-Shape', emoji: '🫲',
-    phrase: 'I want to', isUtility: false,
+    phrase: 'I want to ask you a question.', isUtility: false,
     description: 'Thumb pointing OUT + index pointing UP. Others curled.',
   },
   SHAKA: {
     id: 'SHAKA', label: 'Shaka / Hang Loose', emoji: '🤙',
-    phrase: 'No worries!', isUtility: false,
+    phrase: 'No worries, everything is fine!', isUtility: false,
     description: 'Thumb + pinky extended. Middle 3 fingers curled.',
   },
   ILY: {
     id: 'ILY', label: 'I Love You (ASL)', emoji: '🤟',
-    phrase: 'I love you!', isUtility: false,
+    phrase: 'I love you very much.', isUtility: false,
     description: 'Thumb + index + pinky extended. Middle + ring curled.',
   },
   THREE_THUMB: {
     id: 'THREE_THUMB', label: 'Thumb + 2 fingers', emoji: '🤙',
-    phrase: 'Good morning!', isUtility: false,
+    phrase: 'Good morning to you!', isUtility: false,
     description: 'Thumb + index + middle up. Ring + pinky curled.',
   },
   FOUR_THUMB: {
     id: 'FOUR_THUMB', label: '4 fingers + thumb (no pinky)', emoji: '🖐️',
-    phrase: 'Goodbye!', isUtility: false,
+    phrase: 'Goodbye, have a great day!', isUtility: false,
     description: 'Thumb + index + middle + ring up. ONLY pinky curled.',
   },
 
