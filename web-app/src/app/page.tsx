@@ -1,30 +1,22 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Camera, Clipboard, Volume2, Trash2, ExternalLink,
-  CheckCheck, Type, Zap, X, BarChart2, Hand, Radio,
+  CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap
 } from 'lucide-react';
 import { GESTURE_MAP, GESTURE_LIST, type GestureId } from '@/utils/fingerGestures';
+import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
+import LearnModePanel from '@/components/LearnModePanel';
 
-// ── Lazy-load both detectors (client-only, heavy) ─────────────────────────────
-const ASLDetector = dynamic(() => import('@/components/ASLDetector'), {
+// ── Lazy-load Unified Engine (client-only, heavy) ─────────────────────────────
+const DetectorEngine = dynamic(() => import('@/components/DetectorEngine'), {
   ssr: false,
   loading: () => (
     <div className="detector-overlay">
       <div className="spinner animate-spin" />
-      <p className="overlay-text animate-pulse">Initialising…</p>
-    </div>
-  ),
-});
-
-const FingerCountDetector = dynamic(() => import('@/components/FingerCountDetector'), {
-  ssr: false,
-  loading: () => (
-    <div className="detector-overlay">
-      <div className="spinner animate-spin" />
-      <p className="overlay-text animate-pulse">Initialising…</p>
+      <p className="overlay-text animate-pulse">Initialising Camera Engine…</p>
     </div>
   ),
 });
@@ -34,29 +26,29 @@ async function speakText(text: string) {
   if (!text) return;
   try {
     const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
-    await TextToSpeech.speak({ text, lang: 'en-US', rate: 0.88, pitch: 0.92, volume: 1.0 });
+    await TextToSpeech.speak({ text, lang: 'en-IN', rate: 0.88, pitch: 0.92, volume: 1.0 }); // changed en-US to en-IN for Indian accent
   } catch {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utter  = new SpeechSynthesisUtterance(text);
-    utter.lang   = 'en-US';
+    utter.lang   = 'en-IN'; // Indian accent fallback
     utter.rate   = 0.88;
     utter.pitch  = 0.92;
     const voices = window.speechSynthesis.getVoices();
-    const best   = voices.find(v => /google us english|samantha|karen|google/i.test(v.name))
+    const best   = voices.find(v => /google|indian|en-IN/i.test(v.name) && v.lang.startsWith('en-IN'))
                 || voices.find(v => v.lang.startsWith('en'));
     if (best) utter.voice = best;
     window.speechSynthesis.speak(utter);
   }
 }
 
-type AppMode = 'asl' | 'custom';
+type AppMode = 'asl' | 'isl' | 'custom';
 
 export default function Home() {
   const [mode, setMode]               = useState<AppMode>('asl');
   const [words, setWords]             = useState<string[]>([]);
 
-  // ASL mode state
+  // Detection mode state
   const [currentSign, setCurrentSign]  = useState('');
   const [confidence, setConfidence]    = useState(0);
   const [commitProgress, setCommitProgress] = useState(0);
@@ -67,12 +59,66 @@ export default function Home() {
 
   const [copied, setCopied] = useState(false);
 
+  // Learn Mode State
+  const [isLearnMode, setIsLearnMode] = useState(false);
+  const [aslDict, setAslDict] = useState<string[]>([]);
+  const [islDict, setIslDict] = useState<string[]>([]);
+  const [challengeWord, setChallengeWord] = useState('');
+  const [score, setScore] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [successTrigger, setSuccessTrigger] = useState(false);
+
+  // Fetch Dictionaries on Load
+  useEffect(() => {
+    fetch('/signs.json')
+      .then(async (aslRes) => {
+        const aslJson = await aslRes.json();
+        setAslDict(Object.values(aslJson));
+        
+        // Use heuristic map for ISL
+        const islWords = Object.values(ISL_MAP)
+          .filter(def => !def.isUtility)
+          .map(def => def.phrase || def.label);
+        setIslDict(islWords);
+      })
+      .catch(e => console.error(e));
+  }, []);
+
+  const getRandomChallenge = useCallback(() => {
+    const dict = mode === 'isl' ? islDict : aslDict;
+    if (!dict.length) return;
+    const randomWord = dict[Math.floor(Math.random() * dict.length)];
+    setChallengeWord(randomWord);
+  }, [mode, aslDict, islDict]);
+
+  useEffect(() => {
+    if (isLearnMode && !challengeWord) getRandomChallenge();
+  }, [isLearnMode, challengeWord, getRandomChallenge]);
+
   // ── ASL mode handlers ─────────────────────────────────────────────────────
   const handleWordDetected = useCallback((word: string) => {
     setCurrentSign(word);
     setCommitProgress(0);
     setWords(prev => [...prev, word]);
-  }, []);
+
+    // Challenge check
+    setChallengeWord(prevChallenge => {
+      if (isLearnMode && prevChallenge && word.toLowerCase() === prevChallenge.toLowerCase()) {
+        setSuccessTrigger(true);
+        setScore(s => s + 100);
+        setStreak(s => s + 1);
+        setTimeout(() => {
+          setSuccessTrigger(false);
+          const dict = mode === 'isl' ? islDict : aslDict;
+          const nextWord = dict[Math.floor(Math.random() * dict.length)];
+          setChallengeWord(nextWord);
+        }, 2000);
+      } else if (isLearnMode && word) {
+        setStreak(0);
+      }
+      return prevChallenge;
+    });
+  }, [isLearnMode, mode, islDict, aslDict]);
 
   const handleSignUpdate = useCallback((sign: string, conf: number, progress: number) => {
     setCurrentSign(sign);
@@ -125,10 +171,13 @@ export default function Home() {
     setMode(m);
     setCurrentSign(''); setConfidence(0); setCommitProgress(0);
     setActiveGesture('UNKNOWN'); setGestureProgress(0);
+    setChallengeWord('');
   };
 
   // Current gesture definition (for display)
-  const activeDef = GESTURE_MAP[activeGesture] ?? GESTURE_MAP.UNKNOWN;
+  const activeDef = mode === 'isl' 
+    ? (ISL_MAP[activeGesture as ISLWordId] ?? ISL_MAP.UNKNOWN)
+    : (GESTURE_MAP[activeGesture] ?? GESTURE_MAP.UNKNOWN);
 
   return (
     <div className="app-wrapper">
@@ -155,11 +204,26 @@ export default function Home() {
         <div className="mode-toggle animate-in" style={{ animationDelay: '0.04s' }}>
           <button className={`mode-btn${mode === 'asl' ? ' active' : ''}`} onClick={() => switchMode('asl')}>
             <Radio size={15} />
-            ASL Word Detection
+            ASL
+          </button>
+          <button className={`mode-btn${mode === 'isl' ? ' active' : ''}`} onClick={() => switchMode('isl')}>
+            <Radio size={15} />
+            ISL (Indian)
           </button>
           <button className={`mode-btn${mode === 'custom' ? ' active' : ''}`} onClick={() => switchMode('custom')}>
             <Hand size={15} />
             Custom Gestures
+          </button>
+
+          <div className="vertical-divider" />
+          
+          <button 
+            className={`mode-btn learn-btn${isLearnMode ? ' active' : ''}`} 
+            onClick={() => setIsLearnMode(!isLearnMode)}
+            disabled={mode === 'custom'}
+          >
+            <GraduationCap size={15} />
+            Learn Mode
           </button>
         </div>
 
@@ -177,10 +241,13 @@ export default function Home() {
             </div>
 
             <div className="camera-body">
-              {mode === 'asl'
-                ? <ASLDetector onWordDetected={handleWordDetected} onSignUpdate={handleSignUpdate} />
-                : <FingerCountDetector onSentenceDetected={handleSentenceDetected} onGestureUpdate={handleGestureUpdate} />
-              }
+              <DetectorEngine 
+                mode={mode}
+                onWordDetected={handleWordDetected}
+                onSignUpdate={handleSignUpdate}
+                onSentenceDetected={handleSentenceDetected}
+                onGestureUpdate={handleGestureUpdate}
+              />
             </div>
 
             {/* Camera footer */}
@@ -248,8 +315,21 @@ export default function Home() {
           {/* ── Right Panel ── */}
           <div className="right-panel">
 
-            {/* Gesture cheat-sheet */}
-            {mode === 'custom' && (
+            {/* Learn Mode Override */}
+            {isLearnMode && (mode === 'asl' || mode === 'isl') ? (
+              <LearnModePanel 
+                mode={mode}
+                dictionary={mode === 'isl' ? islDict : aslDict}
+                challengeWord={challengeWord}
+                score={score}
+                streak={streak}
+                successTrigger={successTrigger}
+                onSkip={() => getRandomChallenge()}
+              />
+            ) : (
+              <>
+                {/* Gesture cheat-sheet */}
+                {mode === 'custom' && (
               <div className="card animate-in gesture-legend" style={{ animationDelay: '0.10s' }}>
                 <div className="card-header">
                   <span className="card-title"><Hand size={14} className="card-icon" />Gesture Map</span>
@@ -374,6 +454,9 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            </>
+            )}
 
           </div>
         </div>
