@@ -155,6 +155,7 @@ function modeVote<T extends string>(history: T[]): T {
 
 interface DetectorEngineProps {
   mode: 'asl' | 'isl' | 'custom';
+  outputMode: 'word' | 'sentence';
   onWordDetected: (word: string) => void;
   onSignUpdate: (sign: string, confidence: number, progress: number) => void;
   onSentenceDetected: (phrase: string, gestureId: GestureId) => void;
@@ -163,6 +164,7 @@ interface DetectorEngineProps {
 
 export default function DetectorEngine({
   mode,
+  outputMode,
   onWordDetected,
   onSignUpdate,
   onSentenceDetected,
@@ -436,9 +438,12 @@ export default function DetectorEngine({
 
       if (def.isUtility) {
         onSentenceDetected('', gesture as any);
-      } else if (def.phrase) {
-        ttsRef.current?.speak(def.phrase);
-        onSentenceDetected(def.phrase, gesture as any);
+      } else {
+        const textToSpeak = (outputMode === 'sentence' && def.sentence) ? def.sentence : (def.phrase || def.label);
+        if (textToSpeak) {
+          ttsRef.current?.speak(textToSpeak);
+          onSentenceDetected(textToSpeak, gesture as any);
+        }
       }
     }
   }

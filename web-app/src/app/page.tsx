@@ -46,6 +46,7 @@ type AppMode = 'asl' | 'isl' | 'custom';
 
 export default function Home() {
   const [mode, setMode]               = useState<AppMode>('asl');
+  const [outputMode, setOutputMode]   = useState<'word' | 'sentence'>('sentence');
   const [words, setWords]             = useState<string[]>([]);
 
   // Detection mode state
@@ -243,6 +244,7 @@ export default function Home() {
             <div className="camera-body">
               <DetectorEngine 
                 mode={mode}
+                outputMode={outputMode}
                 onWordDetected={handleWordDetected}
                 onSignUpdate={handleSignUpdate}
                 onSentenceDetected={handleSentenceDetected}
@@ -365,7 +367,7 @@ export default function Home() {
                           <span className="gesture-name">{g.label}</span>
                           <span className="gesture-desc">{g.description}</span>
                         </div>
-                        <span className="gesture-sentence">"{g.phrase}"</span>
+                        <span className="gesture-sentence">"{(outputMode === 'sentence' && g.sentence) ? g.sentence : (g.phrase || g.label)}"</span>
                       </div>
                     );
                   })}
@@ -390,7 +392,7 @@ export default function Home() {
                           <span className="gesture-name">{def.label}</span>
                           <span className="gesture-desc" style={{ color: 'var(--accent)' }}>{def.description}</span>
                         </div>
-                        <span className="gesture-sentence">"{def.phrase}"</span>
+                        <span className="gesture-sentence">"{(outputMode === 'sentence' && def.sentence) ? def.sentence : (def.phrase || def.label)}"</span>
                       </div>
                     );
                   })}
@@ -402,7 +404,15 @@ export default function Home() {
             <div className="card animate-in" style={{ animationDelay: '0.14s' }}>
               <div className="card-header">
                 <span className="card-title"><Type size={14} className="card-icon" />Sentence Builder</span>
-                <div className="card-actions">
+                <div className="card-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <select 
+                    value={outputMode} 
+                    onChange={e => setOutputMode(e.target.value as 'word' | 'sentence')}
+                    style={{ background: 'var(--bg-subtle)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.75rem', outline: 'none' }}
+                  >
+                    <option value="word">Word Mode</option>
+                    <option value="sentence">Sentence Mode</option>
+                  </select>
                   {copied ? (
                     <span className="copy-toast"><CheckCheck size={13} /> Copied!</span>
                   ) : (

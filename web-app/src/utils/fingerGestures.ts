@@ -37,6 +37,7 @@ export interface GestureDefinition {
   label: string;
   emoji: string;
   phrase: string;
+  sentence?: string;
   isUtility: boolean;
   description: string;
 }
@@ -45,51 +46,51 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
   // ── Utility ──────────────────────────────────────────────────────────────
   FIST: {
     id: 'FIST', label: 'Fist', emoji: '✊',
-    phrase: '', isUtility: true,
+    phrase: '', sentence: '', isUtility: true,
     description: 'Close ALL fingers into a fist',
   },
   BOTH_FISTS: {
     id: 'BOTH_FISTS', label: 'Both Fists', emoji: '🤜🤛',
-    phrase: '', isUtility: true,
+    phrase: '', sentence: '', isUtility: true,
     description: 'Make a fist with BOTH hands',
   },
 
   // ── Finger count (no thumb) ───────────────────────────────────────────────
   INDEX: {
     id: 'INDEX', label: '1 Finger (Index)', emoji: '☝️',
-    phrase: 'Hello there, how are you?', isUtility: false,
+    phrase: 'Hello', sentence: 'Hello there, how are you?', isUtility: false,
     description: 'Raise ONLY your index finger. Curl all others.',
   },
   PEACE: {
     id: 'PEACE', label: 'Peace Sign (V)', emoji: '✌️',
-    phrase: 'Are you doing okay today?', isUtility: false,
+    phrase: 'Peace', sentence: 'Are you doing okay today?', isUtility: false,
     description: 'Index + middle up. Thumb and other fingers curled.',
   },
   THREE: {
     id: 'THREE', label: '3 Fingers', emoji: '🖖',
-    phrase: 'I am', isUtility: false,
+    phrase: 'I am', sentence: 'I am feeling really good today.', isUtility: false,
     description: 'Index + middle + ring up. Thumb and pinky curled.',
   },
   FOUR: {
     id: 'FOUR', label: '4 Fingers (no thumb)', emoji: '🖖',
-    phrase: 'going to', isUtility: false,
+    phrase: 'going to', sentence: 'I am going to leave now.', isUtility: false,
     description: 'All 4 fingers up — index to pinky. Thumb curled IN.',
   },
   OPEN_PALM: {
     id: 'OPEN_PALM', label: 'Open Palm (all 5)', emoji: '🖐️',
-    phrase: 'Thank you so much!', isUtility: false,
+    phrase: 'Thank you', sentence: 'Thank you so much for your help!', isUtility: false,
     description: 'All 5 fingers spread open including thumb.',
   },
 
   // ── Thumb variants ────────────────────────────────────────────────────────
   THUMB_UP: {
     id: 'THUMB_UP', label: 'Thumbs Up', emoji: '👍',
-    phrase: 'Yes', isUtility: false,
+    phrase: 'Yes', sentence: 'Yes, I completely agree with you.', isUtility: false,
     description: 'ONLY thumb extended and pointing UP. All fingers curled.',
   },
   THUMB_DOWN: {
     id: 'THUMB_DOWN', label: 'Thumbs Down', emoji: '👎',
-    phrase: 'No', isUtility: false,
+    phrase: 'No', sentence: 'No, I do not think that is correct.', isUtility: false,
     description: 'ONLY thumb extended and pointing DOWN. All fingers curled.',
   },
 
