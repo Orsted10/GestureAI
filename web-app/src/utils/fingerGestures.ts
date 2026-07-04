@@ -67,50 +67,50 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
   },
   THREE: {
     id: 'THREE', label: '3 Fingers', emoji: '🖖',
-    phrase: 'I am feeling really good today.', isUtility: false,
+    phrase: 'I am', isUtility: false,
     description: 'Index + middle + ring up. Thumb and pinky curled.',
   },
   FOUR: {
     id: 'FOUR', label: '4 Fingers (no thumb)', emoji: '🖖',
-    phrase: 'I am going to leave now.', isUtility: false,
+    phrase: 'going to', isUtility: false,
     description: 'All 4 fingers up — index to pinky. Thumb curled IN.',
   },
   OPEN_PALM: {
     id: 'OPEN_PALM', label: 'Open Palm (all 5)', emoji: '🖐️',
-    phrase: 'Thank you so much for your help!', isUtility: false,
+    phrase: 'Thank you so much!', isUtility: false,
     description: 'All 5 fingers spread open including thumb.',
   },
 
   // ── Thumb variants ────────────────────────────────────────────────────────
   THUMB_UP: {
     id: 'THUMB_UP', label: 'Thumbs Up', emoji: '👍',
-    phrase: 'Yes, I completely agree with you.', isUtility: false,
+    phrase: 'Yes', isUtility: false,
     description: 'ONLY thumb extended and pointing UP. All fingers curled.',
   },
   THUMB_DOWN: {
     id: 'THUMB_DOWN', label: 'Thumbs Down', emoji: '👎',
-    phrase: 'No, I do not think that is correct.', isUtility: false,
+    phrase: 'No', isUtility: false,
     description: 'ONLY thumb extended and pointing DOWN. All fingers curled.',
   },
 
   // ── Single isolated finger ────────────────────────────────────────────────
   PINKY: {
     id: 'PINKY', label: 'Pinky Only', emoji: '🤙',
-    phrase: 'I need some assistance please.', isUtility: false,
+    phrase: 'I need', isUtility: false,
     description: 'Raise ONLY your pinky finger. All others curled.',
   },
 
   // ── Multi-finger combos (no thumb) ───────────────────────────────────────
   ROCK: {
     id: 'ROCK', label: 'Rock / Metal \\m/', emoji: '🤘',
-    phrase: 'Please wait a moment for me.', isUtility: false,
+    phrase: 'Please', isUtility: false,
     description: 'Index + pinky up. Middle + ring curled down. No thumb.',
   },
 
   // ── Thumb + finger combos ─────────────────────────────────────────────────
   L_SHAPE: {
     id: 'L_SHAPE', label: 'L-Shape', emoji: '🫲',
-    phrase: 'I want to ask you a question.', isUtility: false,
+    phrase: 'I want to', isUtility: false,
     description: 'Thumb pointing OUT + index pointing UP. Others curled.',
   },
   SHAKA: {
