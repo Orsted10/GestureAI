@@ -328,7 +328,7 @@ export default function Home() {
               />
             ) : (
               <>
-                {/* Gesture cheat-sheet */}
+                {/* Custom Gesture cheat-sheet */}
                 {mode === 'custom' && (
               <div className="card animate-in gesture-legend" style={{ animationDelay: '0.10s' }}>
                 <div className="card-header">
@@ -366,6 +366,31 @@ export default function Home() {
                           <span className="gesture-desc">{g.description}</span>
                         </div>
                         <span className="gesture-sentence">"{g.phrase}"</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ISL cheat-sheet */}
+            {mode === 'isl' && (
+              <div className="card animate-in gesture-legend" style={{ animationDelay: '0.10s' }}>
+                <div className="card-header">
+                  <span className="card-title"><Hand size={14} className="card-icon" />ISL Dictionary</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{Object.keys(ISL_MAP).length - 1} Words Supported</span>
+                </div>
+                <div className="gesture-list">
+                  <div className="gesture-section-label">📚 Core Dictionary</div>
+                  {Object.values(ISL_MAP).filter(def => !def.isUtility).map(def => {
+                    return (
+                      <div key={def.id} className={`gesture-row${activeGesture === def.id ? ' gesture-row-active' : ''}`}>
+                        <span className="gesture-fingers">{def.emoji}</span>
+                        <div className="gesture-info">
+                          <span className="gesture-name">{def.label}</span>
+                          <span className="gesture-desc" style={{ color: 'var(--accent)' }}>{def.description}</span>
+                        </div>
+                        <span className="gesture-sentence">"{def.phrase}"</span>
                       </div>
                     );
                   })}
