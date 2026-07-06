@@ -22,31 +22,43 @@ const DetectorEngine = dynamic(() => import('@/components/DetectorEngine'), {
 });
 
 // ── TTS helper — dynamic import avoids SSR crash ──────────────────────────────
-async function speakText(text: string) {
+async function speakText(text: string, voicePref: 'female' | 'male' = 'female') {
   if (!text) return;
   try {
     const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
-    await TextToSpeech.speak({ text, lang: 'en-IN', rate: 0.88, pitch: 0.92, volume: 1.0 }); // changed en-US to en-IN for Indian accent
+    await TextToSpeech.speak({ text, lang: 'en-IN', rate: 0.88, pitch: voicePref === 'female' ? 1.2 : 0.8, volume: 1.0 }); 
   } catch {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utter  = new SpeechSynthesisUtterance(text);
-    utter.lang   = 'en-IN'; // Indian accent fallback
+    utter.lang   = 'en-IN'; 
     utter.rate   = 0.88;
-    utter.pitch  = 0.92;
+    utter.pitch  = voicePref === 'female' ? 1.2 : 0.8;
     const voices = window.speechSynthesis.getVoices();
-    const best   = voices.find(v => /google|indian|en-IN/i.test(v.name) && v.lang.startsWith('en-IN'))
-                || voices.find(v => v.lang.startsWith('en'));
+    let best = voices.find(v => v.lang.startsWith('en-IN') && v.name.toLowerCase().includes(voicePref));
+    if (!best) best = voices.find(v => v.lang.startsWith('en-IN'));
+    if (!best) best = voices.find(v => v.lang.startsWith('en'));
     if (best) utter.voice = best;
     window.speechSynthesis.speak(utter);
   }
 }
+
+const PREDICTIONS: Record<string, string[]> = {
+  'I am': ['hungry', 'going to', 'sorry', 'late'],
+  'I want to': ['go home', 'eat', 'sleep'],
+  'Can I please have': ['water', 'more', 'help'],
+  'Could you please': ['help me', 'point me to'],
+  'Yes': [', I completely agree', ', thank you'],
+  'No': [', sorry', ', thank you'],
+  'Hello': [', how are you?'],
+};
 
 type AppMode = 'asl' | 'isl' | 'custom';
 
 export default function Home() {
   const [mode, setMode]               = useState<AppMode>('asl');
   const [outputMode, setOutputMode]   = useState<'word' | 'sentence'>('sentence');
+  const [voicePref, setVoicePref]     = useState<'female' | 'male'>('female');
   const [words, setWords]             = useState<string[]>([]);
 
   // Detection mode state
@@ -163,10 +175,30 @@ export default function Home() {
       setTimeout(() => setCopied(false), 2000);
     });
   };
-  const handleReVoice    = () => speakText(sentence);
+  const handleReVoice    = () => speakText(sentence, voicePref);
   const handleClear      = () => { setWords([]); setCurrentSign(''); setConfidence(0); };
   const handleRemove     = (idx: number) => setWords(prev => prev.filter((_, i) => i !== idx));
   const handleRemoveLast = () => setWords(prev => prev.slice(0, -1));
+
+  const applyPrediction = (pred: string) => {
+    setWords(prev => {
+      const isPunctuation = pred.startsWith(',');
+      const newWord = isPunctuation ? pred.trim() : ` ${pred.trim()}`;
+      return [...prev, newWord];
+    });
+  };
+
+  const getPredictions = () => {
+    const s = sentence.trim();
+    if (!s) return [];
+    const keys = Object.keys(PREDICTIONS).sort((a, b) => b.length - a.length);
+    for (const k of keys) {
+      if (s.endsWith(k)) return PREDICTIONS[k];
+    }
+    return [];
+  };
+
+  const predictions = getPredictions();
 
   const switchMode = (m: AppMode) => {
     setMode(m);
@@ -268,6 +300,7 @@ export default function Home() {
               <DetectorEngine 
                 mode={mode}
                 outputMode={outputMode}
+                voicePref={voicePref}
                 onWordDetected={handleWordDetected}
                 onSignUpdate={handleSignUpdate}
                 onSentenceDetected={handleSentenceDetected}
@@ -426,8 +459,16 @@ export default function Home() {
             {/* Sentence builder */}
             <div className="card animate-in" style={{ animationDelay: '0.14s' }}>
               <div className="card-header">
-                <span className="card-title"><Type size={14} className="card-icon" />Sentence Builder</span>
-                <div className="card-actions">
+                <span className="card-title"><Type size={14} className="card-icon" />Live Translation</span>
+                <div className="card-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <select 
+                    value={voicePref} 
+                    onChange={e => setVoicePref(e.target.value as 'female' | 'male')}
+                    style={{ background: 'var(--bg-subtle)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.75rem', outline: 'none' }}
+                  >
+                    <option value="female">Voice: Female</option>
+                    <option value="male">Voice: Male</option>
+                  </select>
                   {copied ? (
                     <span className="copy-toast"><CheckCheck size={13} /> Copied!</span>
                   ) : (
@@ -446,10 +487,25 @@ export default function Home() {
 
               <div className="sentence-output">
                 {sentence
-                  ? <p className="sentence-text">{sentence}</p>
-                  : <p className="sentence-text empty">Your detected signs will appear here as a sentence…</p>
+                  ? <p className="sentence-text">{sentence.replace(/ ,/g, ',')}</p>
+                  : <p className="sentence-text empty">Your translation will appear here as a natural sentence…</p>
                 }
-                <div className="sentence-meta">
+                
+                {predictions.length > 0 && (
+                  <div className="predictive-bubbles" style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
+                    {predictions.map((p, idx) => (
+                      <button 
+                        key={idx} 
+                        onClick={() => applyPrediction(p)}
+                        style={{ background: 'var(--accent-soft)', color: 'var(--accent)', border: '1px solid var(--border-bright)', borderRadius: '16px', padding: '6px 12px', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500 }}
+                      >
+                        +{p}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="sentence-meta" style={{ marginTop: '0.5rem' }}>
                   <span className="word-count"><span>{wordCount}</span> word{wordCount !== 1 ? 's' : ''}</span>
                 </div>
               </div>

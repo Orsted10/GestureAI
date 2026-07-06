@@ -44,44 +44,39 @@ export class TTSManager {
     console.log('[TTS] Voice selected:', this.voice?.name, this.voice?.lang);
   }
 
-  public async speak(text: string): Promise<void> {
+  public async speak(text: string, voicePref: 'female' | 'male' = 'female'): Promise<void> {
     if (!text) return;
 
-    // ── Primary: Web Speech API (Google neural voices in Chrome + WebView) ──
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       try {
-        await this.webSpeak(text);
+        await this.webSpeak(text, voicePref);
         return;
-      } catch {
-        // fall through to Capacitor fallback
+      } catch (e) {
+        console.log('[TTS] Web Speech failed', e);
       }
     }
-
-    // ── Fallback: Capacitor native TTS plugin ─────────────────────────────
-    try {
-      const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
-      await TextToSpeech.speak({ text, lang: 'en-US', rate: 1.0, pitch: 1.0, volume: 1.0 });
-    } catch { /* ignore */ }
   }
 
-  private webSpeak(text: string): Promise<void> {
+  private webSpeak(text: string, voicePref: 'female' | 'male'): Promise<void> {
     return new Promise((resolve, reject) => {
       const synth = window.speechSynthesis;
-      synth.cancel(); // stop anything already playing
+      synth.cancel(); 
 
       const utter      = new SpeechSynthesisUtterance(text);
-      utter.lang       = 'en-US';
-      utter.rate       = 0.95;  // very close to natural speed
-      utter.pitch      = 1.0;   // normal pitch — avoid robotic low pitch
+      utter.lang       = 'en-IN';
+      utter.rate       = 0.90;  
+      utter.pitch      = voicePref === 'female' ? 1.2 : 0.8;   
       utter.volume     = 1.0;
 
-      // Attach the best voice we found
-      if (!this.ready) this.selectBestVoice(); // retry if voices just loaded
-      if (this.voice) utter.voice = this.voice;
+      const voices = synth.getVoices();
+      let best = voices.find(v => v.lang.startsWith('en-IN') && v.name.toLowerCase().includes(voicePref));
+      if (!best) best = voices.find(v => v.lang.startsWith('en-IN'));
+      if (!best) best = voices.find(v => v.lang.startsWith('en'));
+
+      if (best) utter.voice = best;
 
       utter.onend   = () => resolve();
       utter.onerror = e => {
-        // 'interrupted' is not a real error — just cancelled by a new utterance
         if (e.error === 'interrupted') resolve(); else reject(e);
       };
 

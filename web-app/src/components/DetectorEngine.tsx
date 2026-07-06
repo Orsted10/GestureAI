@@ -156,6 +156,7 @@ function modeVote<T extends string>(history: T[]): T {
 interface DetectorEngineProps {
   mode: 'asl' | 'isl' | 'custom';
   outputMode: 'word' | 'sentence';
+  voicePref: 'female' | 'male';
   onWordDetected: (word: string) => void;
   onSignUpdate: (sign: string, confidence: number, progress: number) => void;
   onSentenceDetected: (phrase: string, gestureId: GestureId) => void;
@@ -165,6 +166,7 @@ interface DetectorEngineProps {
 export default function DetectorEngine({
   mode,
   outputMode,
+  voicePref,
   onWordDetected,
   onSignUpdate,
   onSentenceDetected,
@@ -183,6 +185,7 @@ export default function DetectorEngine({
   const islSignsRef        = useRef<Record<string, string>>({});
   const modeRef            = useRef(mode);
   const outputModeRef      = useRef(outputMode);
+  const voicePrefRef       = useRef(voicePref);
 
   // Buffer state
   const frameBufferRef     = useRef<number[][][]>([]);
@@ -205,7 +208,8 @@ export default function DetectorEngine({
   useEffect(() => { 
     modeRef.current = mode; 
     outputModeRef.current = outputMode;
-  }, [mode, outputMode]);
+    voicePrefRef.current = voicePref;
+  }, [mode, outputMode, voicePref]);
 
   useEffect(() => {
     let camera: any  = null;
@@ -445,7 +449,7 @@ export default function DetectorEngine({
       } else {
         const textToSpeak = (outputModeRef.current === 'sentence' && def.sentence) ? def.sentence : (def.phrase || def.label);
         if (textToSpeak) {
-          ttsRef.current?.speak(textToSpeak);
+          ttsRef.current?.speak(textToSpeak, voicePrefRef.current);
           onSentenceDetected(textToSpeak, gesture as any);
         }
       }
