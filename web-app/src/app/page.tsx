@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   Camera, Clipboard, Volume2, Trash2, ExternalLink,
   CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap, MessageSquare,
-  Moon, Sun, Activity, Sparkles, Globe, Heart
+  Moon, Sun, Activity, Sparkles, Globe, Heart, ChevronDown
 } from 'lucide-react';
 import { GESTURE_MAP, GESTURE_LIST, type GestureId } from '@/utils/fingerGestures';
 import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
@@ -79,6 +79,7 @@ export default function Home() {
   // Advanced features state
   const [startTime, setStartTime]     = useState<number | null>(null);
   const [targetLang, setTargetLang]   = useState<'en'|'hi'|'es'>('en');
+  const [isLangOpen, setIsLangOpen]   = useState(false);
   const [isPolished, setIsPolished]   = useState(false);
 
   // Detection mode state
@@ -140,6 +141,14 @@ export default function Home() {
     setWords(prev => {
       if (prev.length === 0) setStartTime(Date.now());
       setIsPolished(false);
+      
+      // Fingerspelling Logic: Stitch single letters together
+      if (word.length === 1 && prev.length > 0 && prev[prev.length - 1].length === 1) {
+        const lastWord = prev[prev.length - 1];
+        // Replace the last single letter with the combined string
+        return [...prev.slice(0, -1), lastWord + word];
+      }
+      
       return [...prev, word];
     });
 
@@ -179,6 +188,14 @@ export default function Home() {
     }
     if (gestureId === 'BOTH_FISTS') {
       setWords([]);                           // clear all
+      return;
+    }
+    if (gestureId === 'THUMBS_UP') {
+      handleReVoice();                        // Trigger Speech
+      return;
+    }
+    if (gestureId === 'PEACE') {
+      handlePolish();                         // Trigger Grammar Polish
       return;
     }
 
@@ -225,6 +242,17 @@ export default function Home() {
   const getPredictions = () => {
     const s = sentence.trim().toUpperCase();
     if (!s) return [];
+    
+    // Context-Aware Smart Predictions based on Sentiment
+    const sentimentObj = getSentiment();
+    if (sentimentObj?.label === 'Urgent') {
+      return ['call a doctor', 'need assistance', 'right away'];
+    }
+    if (sentimentObj?.label === 'Positive') {
+      return ['how are you', 'have a good day', 'friend'];
+    }
+    
+    // Fallback static predictions
     const keys = Object.keys(PREDICTIONS).sort((a, b) => b.length - a.length);
     for (const k of keys) {
       if (s.endsWith(k)) return PREDICTIONS[k];
@@ -253,7 +281,7 @@ export default function Home() {
     }
     setIsPolished(true);
   };
-
+  
   const getTranslatedText = () => {
     if (targetLang === 'en') return sentence.replace(/ ,/g, ',');
     
@@ -602,15 +630,31 @@ export default function Home() {
                 <div className="sentence-meta" style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <Globe size={14} color="var(--text-muted)" />
-                    <select 
-                      value={targetLang} 
-                      onChange={e => setTargetLang(e.target.value as any)}
-                      style={{ background: 'transparent', color: 'var(--text-secondary)', border: 'none', fontSize: '0.75rem', outline: 'none', cursor: 'pointer', fontWeight: 600 }}
-                    >
-                      <option value="en">English (Native)</option>
-                      <option value="hi">Hindi (हिन्दी)</option>
-                      <option value="es">Spanish (Español)</option>
-                    </select>
+                    
+                    {/* CUSTOM DROPDOWN UI */}
+                    <div className="custom-select-wrapper" onMouseLeave={() => setIsLangOpen(false)}>
+                      <div className="custom-select-trigger" onClick={() => setIsLangOpen(!isLangOpen)}>
+                        <span>
+                          {targetLang === 'en' ? 'English (Native)' : 
+                           targetLang === 'hi' ? 'Hindi (हिन्दी)' : 'Spanish (Español)'}
+                        </span>
+                        <ChevronDown size={14} />
+                      </div>
+                      
+                      {isLangOpen && (
+                        <div className="custom-select-menu">
+                          <div className={`custom-select-item ${targetLang === 'en' ? 'active' : ''}`} onClick={() => { setTargetLang('en'); setIsLangOpen(false); }}>
+                            English (Native)
+                          </div>
+                          <div className={`custom-select-item ${targetLang === 'hi' ? 'active' : ''}`} onClick={() => { setTargetLang('hi'); setIsLangOpen(false); }}>
+                            Hindi (हिन्दी)
+                          </div>
+                          <div className={`custom-select-item ${targetLang === 'es' ? 'active' : ''}`} onClick={() => { setTargetLang('es'); setIsLangOpen(false); }}>
+                            Spanish (Español)
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   
                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>

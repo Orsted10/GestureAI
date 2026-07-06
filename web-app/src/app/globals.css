@@ -1077,3 +1077,63 @@ body::after {
   background: var(--border);
   margin: 0 4px;
 }
+
+/* ── CUSTOM DROPDOWN SELECT ───────────────────────────────────────────── */
+.custom-select-wrapper {
+  position: relative;
+  display: inline-block;
+  min-width: 140px;
+}
+
+.custom-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.custom-select-trigger:hover {
+  background: var(--bg-elevated);
+  border-color: var(--accent);
+}
+
+.custom-select-menu {
+  position: absolute;
+  bottom: calc(100% + 8px); /* Pop UP since it's at bottom of card */
+  left: 0;
+  width: 100%;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-bright);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  overflow: hidden;
+  z-index: 100;
+  animation: slideUpFade 0.2s ease forwards;
+}
+
+@keyframes slideUpFade {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.custom-select-item {
+  padding: 8px 12px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.custom-select-item:hover, .custom-select-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
