@@ -65,7 +65,7 @@ export class TTSManager {
       const utter      = new SpeechSynthesisUtterance(text);
       utter.lang       = 'en-IN';
       utter.rate       = 0.90;  
-      utter.pitch      = voicePref === 'female' ? 1.2 : 0.8;   
+      utter.pitch      = voicePref === 'female' ? 1.8 : 0.4;   
       utter.volume     = 1.0;
 
       const voices = synth.getVoices();

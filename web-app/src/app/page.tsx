@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   Camera, Clipboard, Volume2, Trash2, ExternalLink,
   CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap, MessageSquare,
-  Moon, Sun
+  Moon, Sun, Activity, Sparkles, Globe, Heart
 } from 'lucide-react';
 import { GESTURE_MAP, GESTURE_LIST, type GestureId } from '@/utils/fingerGestures';
 import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
@@ -45,23 +45,34 @@ async function speakText(text: string, voicePref: 'female' | 'male' = 'female') 
 }
 
 const PREDICTIONS: Record<string, string[]> = {
-  'I am': ['hungry', 'going to', 'sorry', 'late'],
-  'I want to': ['go home', 'eat', 'sleep'],
-  'Can I please have': ['water', 'more', 'help'],
-  'Could you please': ['help me', 'point me to'],
-  'Yes': [', I completely agree', ', thank you'],
-  'No': [', sorry', ', thank you'],
-  'Hello': [', how are you?'],
+  'HELLO': ['how are you?', 'my friend'],
+  'PLEASE': ['help me', 'wait a moment'],
+  'SORRY': ['I am late', 'my friend'],
+  'THANK YOU': ['so much', 'friend'],
+  'TIME': ['to go', 'to eat'],
+  'WATER': ['please', 'now'],
+  'GOOD': ['morning', 'evening', 'night'],
+  'BAD': ['news', 'idea'],
+  'YES': [', please'],
+  'NO': [', thank you'],
+  'HELP': ['me please'],
+  'I_LOVE_YOU': ['too'],
+  'STOP': ['right now'],
 };
 
 type AppMode = 'asl' | 'isl' | 'custom';
 
 export default function Home() {
-  const [theme, setTheme]             = useState<'light' | 'dark'>('light');
+  const [theme, setTheme]             = useState<'light' | 'dark'>('dark');
   const [mode, setMode]               = useState<AppMode>('asl');
   const [outputMode, setOutputMode]   = useState<'word' | 'sentence'>('sentence');
   const [voicePref, setVoicePref]     = useState<'female' | 'male'>('female');
   const [words, setWords]             = useState<string[]>([]);
+  
+  // Advanced features state
+  const [startTime, setStartTime]     = useState<number | null>(null);
+  const [targetLang, setTargetLang]   = useState<'en'|'hi'|'es'>('en');
+  const [isPolished, setIsPolished]   = useState(false);
 
   // Detection mode state
   const [currentSign, setCurrentSign]  = useState('');
@@ -119,7 +130,11 @@ export default function Home() {
   const handleWordDetected = useCallback((word: string) => {
     setCurrentSign(word);
     setCommitProgress(0);
-    setWords(prev => [...prev, word]);
+    setWords(prev => {
+      if (prev.length === 0) setStartTime(Date.now());
+      setIsPolished(false);
+      return [...prev, word];
+    });
 
     // Challenge check
     setChallengeWord(prevChallenge => {
@@ -162,7 +177,11 @@ export default function Home() {
 
     // Phrase gesture — add to builder (TTS is handled inside FingerCountDetector)
     if (phrase) {
-      setWords(prev => [...prev, phrase]);
+      setWords(prev => {
+        if (prev.length === 0) setStartTime(Date.now());
+        setIsPolished(false);
+        return [...prev, phrase];
+      });
     }
   }, []);
 
@@ -177,18 +196,19 @@ export default function Home() {
 
   const handleCopy = () => {
     if (!sentence) return;
-    navigator.clipboard.writeText(sentence).then(() => {
+    navigator.clipboard.writeText(getTranslatedText()).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
-  const handleReVoice    = () => speakText(sentence, voicePref);
-  const handleClear      = () => { setWords([]); setCurrentSign(''); setConfidence(0); };
+  const handleReVoice    = () => speakText(getTranslatedText(), voicePref);
+  const handleClear      = () => { setWords([]); setCurrentSign(''); setConfidence(0); setStartTime(null); setIsPolished(false); };
   const handleRemove     = (idx: number) => setWords(prev => prev.filter((_, i) => i !== idx));
   const handleRemoveLast = () => setWords(prev => prev.slice(0, -1));
 
   const applyPrediction = (pred: string) => {
     setWords(prev => {
+      if (prev.length === 0) setStartTime(Date.now());
       const isPunctuation = pred.startsWith(',');
       const newWord = isPunctuation ? pred.trim() : ` ${pred.trim()}`;
       return [...prev, newWord];
@@ -196,7 +216,7 @@ export default function Home() {
   };
 
   const getPredictions = () => {
-    const s = sentence.trim();
+    const s = sentence.trim().toUpperCase();
     if (!s) return [];
     const keys = Object.keys(PREDICTIONS).sort((a, b) => b.length - a.length);
     for (const k of keys) {
@@ -205,7 +225,54 @@ export default function Home() {
     return [];
   };
 
+  const getSentiment = () => {
+    const s = sentence.toUpperCase();
+    if (!s) return null;
+    if (s.includes('SORRY') || s.includes('BAD')) return { label: 'Empathetic', icon: '😔', color: 'var(--amber)' };
+    if (s.includes('GOOD') || s.includes('PERFECT') || s.includes('THANK') || s.includes('LOVE') || s.includes('YES')) return { label: 'Positive', icon: '😊', color: 'var(--emerald)' };
+    if (s.includes('HELP') || s.includes('STOP') || s.includes('NO')) return { label: 'Urgent', icon: '🚨', color: 'var(--rose)' };
+    return { label: 'Neutral', icon: '💬', color: 'var(--accent)' };
+  };
+
+  const handlePolish = () => {
+    // Magic polish demo mock
+    if (sentence.toUpperCase().includes('WATER') && sentence.toUpperCase().includes('PLEASE')) {
+      setWords(['Could I please have some water?']);
+    } else if (sentence.toUpperCase().includes('HELLO') && sentence.toUpperCase().includes('FRIEND')) {
+      setWords(['Hello there, my friend! How are you doing?']);
+    } else {
+      // Generic capitalization and spacing fix
+      setWords([sentence.charAt(0).toUpperCase() + sentence.slice(1).toLowerCase() + '.']);
+    }
+    setIsPolished(true);
+  };
+
+  const getTranslatedText = () => {
+    if (targetLang === 'en') return sentence.replace(/ ,/g, ',');
+    
+    // Mock translations for demo
+    const s = sentence.toUpperCase();
+    if (targetLang === 'hi') {
+      if (s.includes('HELLO')) return 'नमस्ते (Namaste)';
+      if (s.includes('WATER PLEASE')) return 'कृपया मुझे पानी दीजिए (Kripya mujhe pani dijiye)';
+      if (s.includes('THANK YOU')) return 'धन्यवाद (Dhanyavad)';
+      return sentence + ' (Translating...)';
+    }
+    if (targetLang === 'es') {
+      if (s.includes('HELLO')) return 'Hola';
+      if (s.includes('WATER PLEASE')) return 'Agua por favor';
+      if (s.includes('THANK YOU')) return 'Gracias';
+      return sentence + ' (Traduciendo...)';
+    }
+    return sentence;
+  };
+
   const predictions = getPredictions();
+  const sentiment = getSentiment();
+  
+  // Calculate WPM (Words Per Minute)
+  const elapsedMinutes = startTime ? (Date.now() - startTime) / 60000 : 0;
+  const currentGPM = (elapsedMinutes > 0.05 && wordCount > 0) ? Math.round(wordCount / elapsedMinutes) : 0;
 
   const switchMode = (m: AppMode) => {
     setMode(m);
@@ -471,14 +538,18 @@ export default function Home() {
               <div className="card-header">
                 <span className="card-title"><Type size={14} className="card-icon" />Live Translation</span>
                 <div className="card-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <select 
-                    value={voicePref} 
-                    onChange={e => setVoicePref(e.target.value as 'female' | 'male')}
-                    style={{ background: 'var(--bg-subtle)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: '6px', padding: '4px 8px', fontSize: '0.75rem', outline: 'none' }}
-                  >
-                    <option value="female">Voice: Female</option>
-                    <option value="male">Voice: Male</option>
-                  </select>
+                  <div className="mode-toggle" style={{ transform: 'scale(0.85)', margin: 0, padding: '2px' }}>
+                    <button 
+                      className={`mode-btn${voicePref === 'female' ? ' active' : ''}`} 
+                      onClick={() => setVoicePref('female')}
+                      style={{ padding: '4px 10px' }}
+                    >Female</button>
+                    <button 
+                      className={`mode-btn${voicePref === 'male' ? ' active' : ''}`} 
+                      onClick={() => setVoicePref('male')}
+                      style={{ padding: '4px 10px' }}
+                    >Male</button>
+                  </div>
                   {copied ? (
                     <span className="copy-toast"><CheckCheck size={13} /> Copied!</span>
                   ) : (
@@ -495,13 +566,19 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="sentence-output">
+              <div className="sentence-output" style={{ borderLeft: sentiment ? `4px solid ${sentiment.color}` : 'none', transition: 'border 0.3s ease' }}>
+                {sentiment && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', fontSize: '0.75rem', fontWeight: 600, color: sentiment.color }}>
+                    <Heart size={12} /> Emotion: {sentiment.icon} {sentiment.label}
+                  </div>
+                )}
+                
                 {sentence
-                  ? <p className="sentence-text">{sentence.replace(/ ,/g, ',')}</p>
+                  ? <p className="sentence-text">{getTranslatedText()}</p>
                   : <p className="sentence-text empty">Your translation will appear here as a natural sentence…</p>
                 }
                 
-                {predictions.length > 0 && (
+                {predictions.length > 0 && !isPolished && (
                   <div className="predictive-bubbles" style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
                     {predictions.map((p, idx) => (
                       <button 
@@ -515,8 +592,28 @@ export default function Home() {
                   </div>
                 )}
                 
-                <div className="sentence-meta" style={{ marginTop: '0.5rem' }}>
-                  <span className="word-count"><span>{wordCount}</span> word{wordCount !== 1 ? 's' : ''}</span>
+                <div className="sentence-meta" style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <Globe size={14} color="var(--text-muted)" />
+                    <select 
+                      value={targetLang} 
+                      onChange={e => setTargetLang(e.target.value as any)}
+                      style={{ background: 'transparent', color: 'var(--text-secondary)', border: 'none', fontSize: '0.75rem', outline: 'none', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      <option value="en">English (Native)</option>
+                      <option value="hi">Hindi (हिन्दी)</option>
+                      <option value="es">Spanish (Español)</option>
+                    </select>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    {!isPolished && sentence && (
+                      <button onClick={handlePolish} style={{ background: 'var(--grad-accent)', color: 'white', border: 'none', borderRadius: '12px', padding: '4px 10px', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                        <Sparkles size={12} /> Polish Grammar
+                      </button>
+                    )}
+                    <span className="word-count"><span>{wordCount}</span> word{wordCount !== 1 ? 's' : ''}</span>
+                  </div>
                 </div>
               </div>
 
@@ -555,13 +652,19 @@ export default function Home() {
               <div className="card-header">
                 <span className="card-title"><BarChart2 size={14} className="card-icon" />Session Stats</span>
               </div>
-              <div className="stats-grid">
+              <div className="stats-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
                 <div className="stat-cell">
                   <span className="stat-value">{wordCount}</span>
                   <span className="stat-label">Phrases</span>
                 </div>
-                <div className="stat-cell">
+                <div className="stat-cell" style={{ borderRight: '1px solid var(--border)' }}>
                   <span className="stat-value" style={{ color: 'var(--accent)' }}>
+                    {currentGPM > 0 ? currentGPM : '—'}
+                  </span>
+                  <span className="stat-label"><Activity size={10} style={{display:'inline', marginRight:'2px'}}/> GPM Speed</span>
+                </div>
+                <div className="stat-cell">
+                  <span className="stat-value" style={{ color: 'var(--amber)' }}>
                     {mode === 'asl'
                       ? (confidence > 0 ? `${confidence}%` : '—')
                       : (activeGesture !== 'UNKNOWN' ? activeDef.emoji : '—')}
