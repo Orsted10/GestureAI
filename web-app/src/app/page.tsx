@@ -4,7 +4,8 @@ import dynamic from 'next/dynamic';
 import { useState, useCallback, useEffect } from 'react';
 import {
   Camera, Clipboard, Volume2, Trash2, ExternalLink,
-  CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap, MessageSquare
+  CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap, MessageSquare,
+  Moon, Sun
 } from 'lucide-react';
 import { GESTURE_MAP, GESTURE_LIST, type GestureId } from '@/utils/fingerGestures';
 import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
@@ -56,6 +57,7 @@ const PREDICTIONS: Record<string, string[]> = {
 type AppMode = 'asl' | 'isl' | 'custom';
 
 export default function Home() {
+  const [theme, setTheme]             = useState<'light' | 'dark'>('light');
   const [mode, setMode]               = useState<AppMode>('asl');
   const [outputMode, setOutputMode]   = useState<'word' | 'sentence'>('sentence');
   const [voicePref, setVoicePref]     = useState<'female' | 'male'>('female');
@@ -107,6 +109,11 @@ export default function Home() {
   useEffect(() => {
     if (isLearnMode && !challengeWord) getRandomChallenge();
   }, [isLearnMode, challengeWord, getRandomChallenge]);
+
+  // Apply theme
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // ── ASL mode handlers ─────────────────────────────────────────────────────
   const handleWordDetected = useCallback((word: string) => {
@@ -227,6 +234,9 @@ export default function Home() {
               <span className="badge-dot" />
               100% Offline
             </div>
+            <button className="btn-ghost" onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} title="Toggle Theme">
+              {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
             <a href="https://github.com/Orsted10/GestureAI" target="_blank" rel="noreferrer" className="btn-ghost" title="GitHub">
               <ExternalLink size={16} />
             </a>
