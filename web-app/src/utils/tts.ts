@@ -65,11 +65,16 @@ export class TTSManager {
       const utter      = new SpeechSynthesisUtterance(text);
       utter.lang       = 'en-IN';
       utter.rate       = 0.90;  
-      utter.pitch      = voicePref === 'female' ? 1.8 : 0.4;   
+      utter.pitch      = voicePref === 'female' ? 1.2 : 0.85;   
       utter.volume     = 1.0;
 
       const voices = synth.getVoices();
-      let best = voices.find(v => v.lang.startsWith('en-IN') && v.name.toLowerCase().includes(voicePref));
+      const femaleNames = ['veena', 'samantha', 'victoria', 'karen', 'moira', 'tessa', 'zira', 'google us english', 'female', 'woman'];
+      const maleNames = ['rishi', 'daniel', 'david', 'mark', 'arthur', 'male', 'man'];
+      const targetNames = voicePref === 'female' ? femaleNames : maleNames;
+
+      let best = voices.find(v => v.lang.startsWith('en-IN') && targetNames.some(n => v.name.toLowerCase().includes(n)));
+      if (!best) best = voices.find(v => v.lang.startsWith('en') && targetNames.some(n => v.name.toLowerCase().includes(n)));
       if (!best) best = voices.find(v => v.lang.startsWith('en-IN'));
       if (!best) best = voices.find(v => v.lang.startsWith('en'));
 

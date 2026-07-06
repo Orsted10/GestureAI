@@ -27,18 +27,25 @@ async function speakText(text: string, voicePref: 'female' | 'male' = 'female') 
   if (!text) return;
   try {
     const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
-    await TextToSpeech.speak({ text, lang: 'en-IN', rate: 0.88, pitch: voicePref === 'female' ? 1.2 : 0.8, volume: 1.0 }); 
+    await TextToSpeech.speak({ text, lang: 'en-IN', rate: 0.88, pitch: voicePref === 'female' ? 1.2 : 0.85, volume: 1.0 }); 
   } catch {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utter  = new SpeechSynthesisUtterance(text);
     utter.lang   = 'en-IN'; 
     utter.rate   = 0.88;
-    utter.pitch  = voicePref === 'female' ? 1.2 : 0.8;
+    utter.pitch  = voicePref === 'female' ? 1.2 : 0.85;
+    
     const voices = window.speechSynthesis.getVoices();
-    let best = voices.find(v => v.lang.startsWith('en-IN') && v.name.toLowerCase().includes(voicePref));
+    const femaleNames = ['veena', 'samantha', 'victoria', 'karen', 'moira', 'tessa', 'zira', 'google us english', 'female', 'woman'];
+    const maleNames = ['rishi', 'daniel', 'david', 'mark', 'arthur', 'male', 'man'];
+    const targetNames = voicePref === 'female' ? femaleNames : maleNames;
+
+    let best = voices.find(v => v.lang.startsWith('en-IN') && targetNames.some(n => v.name.toLowerCase().includes(n)));
+    if (!best) best = voices.find(v => v.lang.startsWith('en') && targetNames.some(n => v.name.toLowerCase().includes(n)));
     if (!best) best = voices.find(v => v.lang.startsWith('en-IN'));
     if (!best) best = voices.find(v => v.lang.startsWith('en'));
+    
     if (best) utter.voice = best;
     window.speechSynthesis.speak(utter);
   }
