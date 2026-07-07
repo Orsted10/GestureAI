@@ -320,12 +320,7 @@ export default function Home() {
   const elapsedMinutes = startTime ? (Date.now() - startTime) / 60000 : 0;
   const currentGPM = (elapsedMinutes > 0.05 && wordCount > 0) ? Math.round(wordCount / elapsedMinutes) : 0;
 
-  const switchMode = (m: AppMode) => {
-    setMode(m);
-    setCurrentSign(''); setConfidence(0); setCommitProgress(0);
-    setActiveGesture('UNKNOWN'); setGestureProgress(0);
-    setChallengeWord('');
-  };
+
 
   // Current gesture definition (for display)
   const activeDef = mode === 'isl' 
