@@ -190,7 +190,7 @@ export default function Home() {
       setWords([]);                           // clear all
       return;
     }
-    if (gestureId === 'THUMBS_UP') {
+    if (gestureId === 'THUMB_UP') {
       handleReVoice();                        // Trigger Speech
       return;
     }
