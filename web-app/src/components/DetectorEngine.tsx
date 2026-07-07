@@ -449,14 +449,12 @@ export default function DetectorEngine({
       heurConfirmRef.current = 0;
       historyRef.current = [];  
       
-      // Global Jedi Mode Switches
-      if (gesture === 'ROCK' && currentMode !== 'asl') { onModeSwitch('asl'); return; }
-      if (gesture === 'SHAKA' && currentMode !== 'isl') { onModeSwitch('isl'); return; }
-      if (gesture === 'OPEN_PALM' && currentMode !== 'custom') { onModeSwitch('custom'); return; }
+      // Global Jedi Mode Cycle & Actions (Using completely UNUSED gestures)
+      if (gesture === 'FOUR') { onModeSwitch('cycle' as any); return; }
       
       // Universal Action Gestures
-      if (gesture === 'THUMB_UP') { onUniversalAction('speak'); return; }
-      if (gesture === 'PEACE') { onUniversalAction('polish'); return; }
+      if (gesture === 'INDEX') { onUniversalAction('speak'); return; }
+      if (gesture === 'PINKY') { onUniversalAction('polish'); return; }
 
       const def = currentMode === 'isl' ? ISL_MAP[gesture as ISLWordId] : GESTURE_MAP[gesture as GestureId];
       if (!def) return;
@@ -499,11 +497,9 @@ export default function DetectorEngine({
     else { heurCandidateRef.current = gesture; heurConfirmRef.current = 2; }
     
     if (heurConfirmRef.current >= HEURISTIC_CONFIRM) {
-      if (gesture === 'ROCK') { heurLastCommit.current = now; onModeSwitch('asl'); return; }
-      if (gesture === 'SHAKA') { heurLastCommit.current = now; onModeSwitch('isl'); return; }
-      if (gesture === 'OPEN_PALM') { heurLastCommit.current = now; onModeSwitch('custom'); return; }
-      if (gesture === 'THUMB_UP') { heurLastCommit.current = now; onUniversalAction('speak'); return; }
-      if (gesture === 'PEACE') { heurLastCommit.current = now; onUniversalAction('polish'); return; }
+      if (gesture === 'FOUR') { heurLastCommit.current = now; onModeSwitch('cycle' as any); return; }
+      if (gesture === 'INDEX') { heurLastCommit.current = now; onUniversalAction('speak'); return; }
+      if (gesture === 'PINKY') { heurLastCommit.current = now; onUniversalAction('polish'); return; }
     }
   }
 

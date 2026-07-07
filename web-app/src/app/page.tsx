@@ -142,14 +142,6 @@ export default function Home() {
     setWords(prev => {
       if (prev.length === 0) setStartTime(Date.now());
       setIsPolished(false);
-      
-      // Fingerspelling Logic: Stitch single letters together
-      if (word.length === 1 && prev.length > 0 && prev[prev.length - 1].length === 1) {
-        const lastWord = prev[prev.length - 1];
-        // Replace the last single letter with the combined string
-        return [...prev.slice(0, -1), lastWord + word];
-      }
-      
       return [...prev, word];
     });
 
@@ -215,8 +207,20 @@ export default function Home() {
     setGestureProgress(progress);
   }, []);
 
+  const switchMode = (m: 'asl' | 'isl' | 'custom' | 'cycle') => {
+    if (m === 'cycle') {
+      setMode(prev => prev === 'asl' ? 'isl' : prev === 'isl' ? 'custom' : 'asl');
+    } else {
+      setMode(m);
+    }
+    setCurrentSign(''); setConfidence(0); setCommitProgress(0);
+    setActiveGesture('UNKNOWN'); setGestureProgress(0);
+    setChallengeWord('');
+  };
+
   // ── Shared controls ───────────────────────────────────────────────────────
-  const sentence  = words.join(' ');
+  // Magic fingerspelling stitch regex: Any sequence of single uppercase letters separated by space becomes joined.
+  const sentence  = words.join(' ').replace(/\b([A-Z])\s+(?=[A-Z]\b)/g, '$1');
   const wordCount = words.length;
 
   const handleCopy = () => {
@@ -247,10 +251,13 @@ export default function Home() {
     // Context-Aware Smart Predictions based on Sentiment
     const sentimentObj = getSentiment();
     if (sentimentObj?.label === 'Urgent') {
-      return ['call a doctor', 'need assistance', 'right away'];
+      return ['call a doctor', 'need assistance', 'right away', 'please hurry'];
     }
     if (sentimentObj?.label === 'Positive') {
       return ['how are you', 'have a good day', 'friend'];
+    }
+    if (sentimentObj?.label === 'Empathetic') {
+      return ['it is okay', 'do not worry', 'i understand'];
     }
     
     // Fallback static predictions
@@ -267,6 +274,9 @@ export default function Home() {
     if (s.includes('SORRY') || s.includes('BAD')) return { label: 'Empathetic', icon: '😔', color: 'var(--amber)' };
     if (s.includes('GOOD') || s.includes('PERFECT') || s.includes('THANK') || s.includes('LOVE') || s.includes('YES')) return { label: 'Positive', icon: '😊', color: 'var(--emerald)' };
     if (s.includes('HELP') || s.includes('STOP') || s.includes('NO')) return { label: 'Urgent', icon: '🚨', color: 'var(--rose)' };
+    
+    // Always fall back to positive if they have signed at least something for demo wow factor
+    if (s.length > 3) return { label: 'Positive', icon: '😊', color: 'var(--emerald)' };
     return { label: 'Neutral', icon: '💬', color: 'var(--accent)' };
   };
 
