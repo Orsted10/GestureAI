@@ -57,9 +57,9 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
 
   // ── Finger count (no thumb) ───────────────────────────────────────────────
   INDEX: {
-    id: 'INDEX', label: '1 Finger (Index)', emoji: '☝️',
-    phrase: 'Hello', sentence: 'Hello there, how are you?', isUtility: false,
-    description: 'Raise ONLY your index finger. Curl all others.',
+    id: 'INDEX', label: 'Speak Sentence', emoji: '☝️',
+    phrase: '', sentence: '', isUtility: true,
+    description: 'System Action: Triggers AI Voice to speak the current sentence out loud.',
   },
   PEACE: {
     id: 'PEACE', label: 'Peace Sign (V)', emoji: '✌️',
@@ -72,9 +72,9 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
     description: 'Index + middle + ring up. Thumb and pinky curled.',
   },
   FOUR: {
-    id: 'FOUR', label: '4 Fingers (no thumb)', emoji: '🖖',
-    phrase: 'going to', sentence: 'I am going to leave now.', isUtility: false,
-    description: 'All 4 fingers up — index to pinky. Thumb curled IN.',
+    id: 'FOUR', label: 'Cycle Modes', emoji: '🖖',
+    phrase: '', sentence: '', isUtility: true,
+    description: 'System Action: Instantly cycles through ASL, ISL, and Custom modes.',
   },
   OPEN_PALM: {
     id: 'OPEN_PALM', label: 'Open Palm (all 5)', emoji: '🖐️',
@@ -96,9 +96,9 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
 
   // ── Single isolated finger ────────────────────────────────────────────────
   PINKY: {
-    id: 'PINKY', label: 'Pinky Only', emoji: '🤙',
-    phrase: 'I need', isUtility: false,
-    description: 'Raise ONLY your pinky finger. All others curled.',
+    id: 'PINKY', label: 'Polish Grammar', emoji: '🤙',
+    phrase: '', sentence: '', isUtility: true,
+    description: 'System Action: Triggers AI to polish and fix the grammar of the sentence.',
   },
 
   // ── Multi-finger combos (no thumb) ───────────────────────────────────────
