@@ -161,6 +161,9 @@ interface DetectorEngineProps {
   onSignUpdate: (sign: string, confidence: number, progress: number) => void;
   onSentenceDetected: (phrase: string, gestureId: GestureId) => void;
   onGestureUpdate: (gestureId: GestureId, progress: number) => void;
+  isPaused: boolean;
+  onModeSwitch: (m: 'asl' | 'isl' | 'custom') => void;
+  onUniversalAction: (action: 'speak' | 'polish') => void;
 }
 
 export default function DetectorEngine({
@@ -171,6 +174,9 @@ export default function DetectorEngine({
   onSignUpdate,
   onSentenceDetected,
   onGestureUpdate,
+  isPaused,
+  onModeSwitch,
+  onUniversalAction,
 }: DetectorEngineProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -186,6 +192,7 @@ export default function DetectorEngine({
   const modeRef            = useRef(mode);
   const outputModeRef      = useRef(outputMode);
   const voicePrefRef       = useRef(voicePref);
+  const isPausedRef        = useRef(isPaused);
 
   // Buffer state
   const frameBufferRef     = useRef<number[][][]>([]);
@@ -209,7 +216,8 @@ export default function DetectorEngine({
     modeRef.current = mode; 
     outputModeRef.current = outputMode;
     voicePrefRef.current = voicePref;
-  }, [mode, outputMode, voicePref]);
+    isPausedRef.current = isPaused;
+  }, [mode, outputMode, voicePref, isPaused]);
 
   useEffect(() => {
     let camera: any  = null;
@@ -436,13 +444,22 @@ export default function DetectorEngine({
     onGestureUpdate(gesture as any, progress);
 
     if (heurConfirmRef.current >= HEURISTIC_CONFIRM) {
-      const def = currentMode === 'isl' ? ISL_MAP[gesture as ISLWordId] : GESTURE_MAP[gesture as GestureId];
-      if (!def) return;
-
       heurLastCommit.current = now;
       heurCandidateRef.current = 'UNKNOWN';
       heurConfirmRef.current = 0;
       historyRef.current = [];  
+      
+      // Global Jedi Mode Switches
+      if (gesture === 'ROCK' && currentMode !== 'asl') { onModeSwitch('asl'); return; }
+      if (gesture === 'SHAKA' && currentMode !== 'isl') { onModeSwitch('isl'); return; }
+      if (gesture === 'OPEN_PALM' && currentMode !== 'custom') { onModeSwitch('custom'); return; }
+      
+      // Universal Action Gestures
+      if (gesture === 'THUMB_UP') { onUniversalAction('speak'); return; }
+      if (gesture === 'PEACE') { onUniversalAction('polish'); return; }
+
+      const def = currentMode === 'isl' ? ISL_MAP[gesture as ISLWordId] : GESTURE_MAP[gesture as GestureId];
+      if (!def) return;
 
       if (def.isUtility) {
         onSentenceDetected('', gesture as any);
@@ -456,7 +473,43 @@ export default function DetectorEngine({
     }
   }
 
+  function processUniversalHeuristics(results: any) {
+    const hasR = !!results.rightHandLandmarks, hasL = !!results.leftHandLandmarks;
+    if (!hasR && !hasL) return;
+    
+    // Only looking at right hand (or left if right is missing) for global commands to save CPU
+    const rawVal = classifyCustom(detectFingers(results.rightHandLandmarks ?? results.leftHandLandmarks));
+    
+    // Quick and dirty confirmation for global commands when ASL engine is running
+    const hist = historyRef.current;
+    hist.push(rawVal);
+    if (hist.length > HISTORY_SIZE) hist.shift();
+    const gesture = modeVote(hist);
+    
+    const now = Date.now();
+    if (now - heurLastCommit.current < HEURISTIC_COOLDOWN) return;
+    
+    if (gesture === 'UNKNOWN') {
+       heurCandidateRef.current = 'UNKNOWN';
+       heurConfirmRef.current = 0;
+       return;
+    }
+    
+    if (gesture === heurCandidateRef.current) heurConfirmRef.current++;
+    else { heurCandidateRef.current = gesture; heurConfirmRef.current = 2; }
+    
+    if (heurConfirmRef.current >= HEURISTIC_CONFIRM) {
+      if (gesture === 'ROCK') { heurLastCommit.current = now; onModeSwitch('asl'); return; }
+      if (gesture === 'SHAKA') { heurLastCommit.current = now; onModeSwitch('isl'); return; }
+      if (gesture === 'OPEN_PALM') { heurLastCommit.current = now; onModeSwitch('custom'); return; }
+      if (gesture === 'THUMB_UP') { heurLastCommit.current = now; onUniversalAction('speak'); return; }
+      if (gesture === 'PEACE') { heurLastCommit.current = now; onUniversalAction('polish'); return; }
+    }
+  }
+
   function onResults(results: any) {
+    if (isPausedRef.current) return;
+    
     const w = window as any;
     const currentMode = modeRef.current;
 
@@ -502,6 +555,8 @@ export default function DetectorEngine({
 
     // ── Dispatch logic based on mode ────────────────────────────────────────
     if (currentMode === 'asl') {
+      processUniversalHeuristics(results); // Run lightweight pose check for global commands
+      
       frameBufferRef.current.push(extractKeypoints(results));
       if (frameBufferRef.current.length > FRAME_WINDOW) frameBufferRef.current.shift();
       frameCounterRef.current++;

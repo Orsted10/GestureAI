@@ -5,7 +5,7 @@ import { useState, useCallback, useEffect } from 'react';
 import {
   Camera, Clipboard, Volume2, Trash2, ExternalLink,
   CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap, MessageSquare,
-  Moon, Sun, Activity, Sparkles, Globe, Heart, ChevronDown
+  Moon, Sun, Activity, Sparkles, Globe, Heart, ChevronDown, Play, Pause
 } from 'lucide-react';
 import { GESTURE_MAP, GESTURE_LIST, type GestureId } from '@/utils/fingerGestures';
 import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
@@ -72,6 +72,7 @@ type AppMode = 'asl' | 'isl' | 'custom';
 export default function Home() {
   const [theme, setTheme]             = useState<'light' | 'dark'>('dark');
   const [mode, setMode]               = useState<AppMode>('asl');
+  const [isPaused, setIsPaused]       = useState(false);
   const [outputMode, setOutputMode]   = useState<'word' | 'sentence'>('sentence');
   const [voicePref, setVoicePref]     = useState<'female' | 'male'>('female');
   const [words, setWords]             = useState<string[]>([]);
@@ -401,18 +402,44 @@ export default function Home() {
           {/* ── Camera Panel ── */}
           <div className="camera-panel">
             <div className="camera-header">
-              <span className="camera-label"><span className="live-dot" />Live Camera</span>
-              <span className="loading-status">
-                <Camera size={13} />
-                {mode === 'asl' ? 'MediaPipe Holistic' : 'Gesture Detection'}
+              <span className="camera-label">
+                <span className="live-dot" style={{ background: isPaused ? 'var(--amber)' : '#ef4444', boxShadow: isPaused ? 'none' : '0 0 8px rgba(239,68,68,0.7)' }} />
+                {isPaused ? 'Camera Paused' : 'Live Camera'}
               </span>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <button 
+                  onClick={() => setIsPaused(!isPaused)} 
+                  className="icon-btn" 
+                  style={{ width: '28px', height: '28px', background: isPaused ? 'var(--grad-accent)' : 'transparent', color: isPaused ? '#fff' : 'inherit' }}
+                  title={isPaused ? "Resume Camera" : "Pause Camera"}
+                >
+                  {isPaused ? <Play size={12} fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
+                </button>
+                <span className="loading-status">
+                  <Camera size={13} />
+                  {mode === 'asl' ? 'MediaPipe Holistic' : 'Gesture Detection'}
+                </span>
+              </div>
             </div>
 
             <div className="camera-body">
+              {isPaused && (
+                <div className="detector-overlay" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', color: 'white' }}>
+                  <Pause size={48} fill="currentColor" style={{ opacity: 0.8 }} />
+                  <p className="overlay-text" style={{ color: 'white' }}>Camera processing paused.</p>
+                  <p style={{ fontSize: '0.75rem', opacity: 0.7 }}>Click Play to resume detection.</p>
+                </div>
+              )}
               <DetectorEngine 
                 mode={mode}
                 outputMode={outputMode}
                 voicePref={voicePref}
+                isPaused={isPaused}
+                onModeSwitch={switchMode}
+                onUniversalAction={(action) => {
+                  if (action === 'speak') handleReVoice();
+                  if (action === 'polish') handlePolish();
+                }}
                 onWordDetected={handleWordDetected}
                 onSignUpdate={handleSignUpdate}
                 onSentenceDetected={handleSentenceDetected}
