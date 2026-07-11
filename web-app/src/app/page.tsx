@@ -137,37 +137,7 @@ export default function Home() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Real-time Translation Effect
-  useEffect(() => {
-    if (!sentence) {
-      setTranslatedText('');
-      setIsTranslating(false);
-      return;
-    }
-    if (targetLang === 'en') {
-      setTranslatedText(sentence.replace(/ ,/g, ','));
-      setIsTranslating(false);
-      return;
-    }
-    
-    setIsTranslating(true);
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(sentence)}`, { signal: controller.signal });
-        const data = await res.json();
-        if (data && data[0]) {
-           const translation = data[0].map((part: any) => part[0]).join('');
-           setTranslatedText(translation);
-        }
-      } catch (e) {
-        if ((e as Error).name !== 'AbortError') console.error('Translation error:', e);
-      } finally {
-        setIsTranslating(false);
-      }
-    }, 400); // 400ms debounce
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [sentence, targetLang]);
+
 
   // ── ASL mode handlers ─────────────────────────────────────────────────────
   const handleWordDetected = useCallback((word: string) => {
@@ -256,6 +226,38 @@ export default function Home() {
   // Magic fingerspelling stitch regex: Any sequence of single uppercase letters separated by space becomes joined.
   const sentence  = words.join(' ').replace(/\b([A-Z])\s+(?=[A-Z]\b)/g, '$1');
   const wordCount = words.length;
+
+  // Real-time Translation Effect
+  useEffect(() => {
+    if (!sentence) {
+      setTranslatedText('');
+      setIsTranslating(false);
+      return;
+    }
+    if (targetLang === 'en') {
+      setTranslatedText(sentence.replace(/ ,/g, ','));
+      setIsTranslating(false);
+      return;
+    }
+    
+    setIsTranslating(true);
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(sentence)}`, { signal: controller.signal });
+        const data = await res.json();
+        if (data && data[0]) {
+           const translation = data[0].map((part: any) => part[0]).join('');
+           setTranslatedText(translation);
+        }
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') console.error('Translation error:', e);
+      } finally {
+        setIsTranslating(false);
+      }
+    }, 400); // 400ms debounce
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [sentence, targetLang]);
 
   const handleCopy = () => {
     if (!sentence) return;
