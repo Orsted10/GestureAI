@@ -82,6 +82,8 @@ export default function Home() {
   const [targetLang, setTargetLang]   = useState<'en'|'hi'|'es'>('en');
   const [isLangOpen, setIsLangOpen]   = useState(false);
   const [isPolished, setIsPolished]   = useState(false);
+  const [translatedText, setTranslatedText] = useState('');
+  const [isTranslating, setIsTranslating] = useState(false);
 
   // Detection mode state
   const [currentSign, setCurrentSign]  = useState('');
@@ -134,6 +136,38 @@ export default function Home() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Real-time Translation Effect
+  useEffect(() => {
+    if (!sentence) {
+      setTranslatedText('');
+      setIsTranslating(false);
+      return;
+    }
+    if (targetLang === 'en') {
+      setTranslatedText(sentence.replace(/ ,/g, ','));
+      setIsTranslating(false);
+      return;
+    }
+    
+    setIsTranslating(true);
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${targetLang}&dt=t&q=${encodeURIComponent(sentence)}`, { signal: controller.signal });
+        const data = await res.json();
+        if (data && data[0]) {
+           const translation = data[0].map((part: any) => part[0]).join('');
+           setTranslatedText(translation);
+        }
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') console.error('Translation error:', e);
+      } finally {
+        setIsTranslating(false);
+      }
+    }, 400); // 400ms debounce
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [sentence, targetLang]);
 
   // ── ASL mode handlers ─────────────────────────────────────────────────────
   const handleWordDetected = useCallback((word: string) => {
@@ -295,22 +329,8 @@ export default function Home() {
   
   const getTranslatedText = () => {
     if (targetLang === 'en') return sentence.replace(/ ,/g, ',');
-    
-    // Mock translations for demo
-    const s = sentence.toUpperCase();
-    if (targetLang === 'hi') {
-      if (s.includes('HELLO')) return 'नमस्ते (Namaste)';
-      if (s.includes('WATER PLEASE')) return 'कृपया मुझे पानी दीजिए (Kripya mujhe pani dijiye)';
-      if (s.includes('THANK YOU')) return 'धन्यवाद (Dhanyavad)';
-      return sentence + ' (Translating...)';
-    }
-    if (targetLang === 'es') {
-      if (s.includes('HELLO')) return 'Hola';
-      if (s.includes('WATER PLEASE')) return 'Agua por favor';
-      if (s.includes('THANK YOU')) return 'Gracias';
-      return sentence + ' (Traduciendo...)';
-    }
-    return sentence;
+    if (isTranslating) return `${translatedText || sentence} (Translating...)`;
+    return translatedText || sentence;
   };
 
   const predictions = getPredictions();
