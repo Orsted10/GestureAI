@@ -44,12 +44,12 @@ export class TTSManager {
     console.log('[TTS] Voice selected:', this.voice?.name, this.voice?.lang);
   }
 
-  public async speak(text: string, voicePref: 'female' | 'male' = 'female'): Promise<void> {
+  public async speak(text: string, voicePref: 'female' | 'male' = 'female', targetLang = 'en'): Promise<void> {
     if (!text) return;
 
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       try {
-        await this.webSpeak(text, voicePref);
+        await this.webSpeak(text, voicePref, targetLang);
         return;
       } catch (e) {
         console.log('[TTS] Web Speech failed', e);
@@ -57,26 +57,36 @@ export class TTSManager {
     }
   }
 
-  private webSpeak(text: string, voicePref: 'female' | 'male'): Promise<void> {
+  private webSpeak(text: string, voicePref: 'female' | 'male', targetLang: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const synth = window.speechSynthesis;
       synth.cancel(); 
 
+      let langCode = 'en-US';
+      if (targetLang === 'hi') langCode = 'hi-IN';
+      else if (targetLang === 'es') langCode = 'es-ES';
+      else langCode = 'en-IN'; 
+
       const utter      = new SpeechSynthesisUtterance(text);
-      utter.lang       = 'en-IN';
+      utter.lang       = langCode;
       utter.rate       = 0.90;  
       utter.pitch      = voicePref === 'female' ? 1.2 : 0.85;   
       utter.volume     = 1.0;
 
       const voices = synth.getVoices();
-      const femaleNames = ['veena', 'samantha', 'victoria', 'karen', 'moira', 'tessa', 'zira', 'google us english', 'female', 'woman'];
-      const maleNames = ['rishi', 'daniel', 'david', 'mark', 'arthur', 'male', 'man'];
-      const targetNames = voicePref === 'female' ? femaleNames : maleNames;
+      let targetNames: string[] = [];
+      
+      if (targetLang === 'hi') {
+        targetNames = voicePref === 'female' ? ['swara', 'google हिन्दी', 'aditi', 'veena', 'female'] : ['madhur', 'google हिन्दी', 'male'];
+      } else if (targetLang === 'es') {
+        targetNames = voicePref === 'female' ? ['helena', 'laura', 'monica', 'female'] : ['pablo', 'jorge', 'male'];
+      } else {
+        targetNames = voicePref === 'female' ? ['veena', 'samantha', 'victoria', 'karen', 'moira', 'zira', 'google us english', 'female'] : ['rishi', 'daniel', 'david', 'mark', 'arthur', 'male'];
+      }
 
-      let best = voices.find(v => v.lang.startsWith('en-IN') && targetNames.some(n => v.name.toLowerCase().includes(n)));
-      if (!best) best = voices.find(v => v.lang.startsWith('en') && targetNames.some(n => v.name.toLowerCase().includes(n)));
-      if (!best) best = voices.find(v => v.lang.startsWith('en-IN'));
-      if (!best) best = voices.find(v => v.lang.startsWith('en'));
+      let best = voices.find(v => v.lang.startsWith(langCode.split('-')[0]) && targetNames.some(n => v.name.toLowerCase().includes(n)));
+      if (!best) best = voices.find(v => v.lang.startsWith(langCode));
+      if (!best) best = voices.find(v => v.lang.startsWith(langCode.split('-')[0]));
 
       if (best) utter.voice = best;
 

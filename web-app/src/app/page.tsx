@@ -23,28 +23,38 @@ const DetectorEngine = dynamic(() => import('@/components/DetectorEngine'), {
 });
 
 // ── TTS helper — dynamic import avoids SSR crash ──────────────────────────────
-async function speakText(text: string, voicePref: 'female' | 'male' = 'female') {
+async function speakText(text: string, voicePref: 'female' | 'male' = 'female', targetLang: string = 'en') {
   if (!text) return;
+  
+  let langCode = 'en-US';
+  if (targetLang === 'hi') langCode = 'hi-IN';
+  else if (targetLang === 'es') langCode = 'es-ES';
+  else langCode = 'en-IN'; 
+
   try {
     const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
-    await TextToSpeech.speak({ text, lang: 'en-IN', rate: 0.88, pitch: voicePref === 'female' ? 1.2 : 0.85, volume: 1.0 }); 
+    await TextToSpeech.speak({ text, lang: langCode, rate: 0.88, pitch: voicePref === 'female' ? 1.2 : 0.85, volume: 1.0 }); 
   } catch {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const utter  = new SpeechSynthesisUtterance(text);
-    utter.lang   = 'en-IN'; 
+    utter.lang   = langCode; 
     utter.rate   = 0.88;
     utter.pitch  = voicePref === 'female' ? 1.2 : 0.85;
     
     const voices = window.speechSynthesis.getVoices();
-    const femaleNames = ['veena', 'samantha', 'victoria', 'karen', 'moira', 'tessa', 'zira', 'google us english', 'female', 'woman'];
-    const maleNames = ['rishi', 'daniel', 'david', 'mark', 'arthur', 'male', 'man'];
-    const targetNames = voicePref === 'female' ? femaleNames : maleNames;
+    let targetNames: string[] = [];
+    if (targetLang === 'hi') {
+      targetNames = voicePref === 'female' ? ['swara', 'google हिन्दी', 'aditi', 'veena', 'female'] : ['madhur', 'google हिन्दी', 'male'];
+    } else if (targetLang === 'es') {
+      targetNames = voicePref === 'female' ? ['helena', 'laura', 'monica', 'female'] : ['pablo', 'jorge', 'male'];
+    } else {
+      targetNames = voicePref === 'female' ? ['veena', 'samantha', 'victoria', 'karen', 'moira', 'zira', 'google us english', 'female'] : ['rishi', 'daniel', 'david', 'mark', 'arthur', 'male'];
+    }
 
-    let best = voices.find(v => v.lang.startsWith('en-IN') && targetNames.some(n => v.name.toLowerCase().includes(n)));
-    if (!best) best = voices.find(v => v.lang.startsWith('en') && targetNames.some(n => v.name.toLowerCase().includes(n)));
-    if (!best) best = voices.find(v => v.lang.startsWith('en-IN'));
-    if (!best) best = voices.find(v => v.lang.startsWith('en'));
+    let best = voices.find(v => v.lang.startsWith(langCode.split('-')[0]) && targetNames.some(n => v.name.toLowerCase().includes(n)));
+    if (!best) best = voices.find(v => v.lang.startsWith(langCode));
+    if (!best) best = voices.find(v => v.lang.startsWith(langCode.split('-')[0]));
     
     if (best) utter.voice = best;
     window.speechSynthesis.speak(utter);
@@ -266,7 +276,7 @@ export default function Home() {
       setTimeout(() => setCopied(false), 2000);
     });
   };
-  const handleReVoice    = () => speakText(getTranslatedText(), voicePref);
+  const handleReVoice    = () => speakText(getTranslatedText(), voicePref, targetLang);
   const handleClear      = () => { setWords([]); setCurrentSign(''); setConfidence(0); setStartTime(null); setIsPolished(false); };
   const handleRemove     = (idx: number) => setWords(prev => prev.filter((_, i) => i !== idx));
   const handleRemoveLast = () => setWords(prev => prev.slice(0, -1));

@@ -8,11 +8,11 @@ import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
 // ── Shared Tuning ─────────────────────────────────────────────────────────
 const FRAME_WINDOW    = 30;
 const INFER_EVERY     = 6;
-const ASL_CONF_MIN    = 0.50;
+const ASL_CONF_MIN    = 0.45;
 const ASL_CONFIRM     = 2;
 const ASL_COOLDOWN    = 1500;
 
-const HEURISTIC_CONFIRM = 14; 
+const HEURISTIC_CONFIRM = 18; 
 const HEURISTIC_COOLDOWN = 1800;
 const HISTORY_SIZE       = 7;
 const UNKNOWN_RESET      = 15;
@@ -274,7 +274,7 @@ export default function DetectorEngine({
           locateFile: (file: string) => `/mediapipe/holistic/${file}`, 
         });
         holistic.setOptions({
-          modelComplexity: 1,
+          modelComplexity: 0,
           smoothLandmarks: true,
           enableSegmentation: false,
           minDetectionConfidence: 0.5,
