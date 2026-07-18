@@ -327,6 +327,7 @@ export default function Home() {
   };
 
   const handlePolish = () => {
+    if (!sentence.trim()) return;
     // Magic polish demo mock
     if (sentence.toUpperCase().includes('WATER') && sentence.toUpperCase().includes('PLEASE')) {
       setWords(['Could I please have some water?']);

@@ -1,7 +1,9 @@
+import { Capacitor } from '@capacitor/core';
+import { TextToSpeech } from '@capacitor-community/text-to-speech';
+
 /**
- * TTSManager — uses the Web Speech API as PRIMARY for best voice quality.
- * Android WebView / Chrome both have access to Google's neural TTS voices via
- * the standard speechSynthesis API. Capacitor TTS is only a fallback.
+ * TTSManager — uses the Web Speech API on Web, but explicitly uses 
+ * Capacitor TextToSpeech on native mobile to bypass auto-play blocking.
  */
 export class TTSManager {
   private voice: SpeechSynthesisVoice | null = null;
@@ -46,6 +48,20 @@ export class TTSManager {
 
   public async speak(text: string, voicePref: 'female' | 'male' = 'female', targetLang = 'en'): Promise<void> {
     if (!text) return;
+
+    let langCode = 'en-US';
+    if (targetLang === 'hi') langCode = 'hi-IN';
+    else if (targetLang === 'es') langCode = 'es-ES';
+    else langCode = 'en-IN'; 
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await TextToSpeech.speak({ text, lang: langCode, rate: 0.88, pitch: voicePref === 'female' ? 1.2 : 0.85, volume: 1.0 });
+        return;
+      } catch (e) {
+        console.log('[TTS] Capacitor TTS failed, falling back to Web Speech', e);
+      }
+    }
 
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       try {
