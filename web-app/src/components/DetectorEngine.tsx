@@ -533,8 +533,7 @@ export default function DetectorEngine({
       } else {
         const textToSpeak = (outputModeRef.current === 'sentence' && def.sentence) ? def.sentence : (def.phrase || def.label);
         if (textToSpeak) {
-          // BUG FIX: Ensure Word Detected triggers properly for custom mode so text appears!
-          onWordDetected(textToSpeak);
+          // Send to onSentenceDetected which updates the UI text
           ttsRef.current?.speak(textToSpeak, voicePrefRef.current);
           onSentenceDetected(textToSpeak, gesture as any);
         }
@@ -589,7 +588,12 @@ export default function DetectorEngine({
           ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
           ctx.translate(canvasRef.current.width, 0);
           ctx.scale(-1, 1);
-          ctx.drawImage(results.image, 0, 0, canvasRef.current.width, canvasRef.current.height);
+          // Draw the raw camera feed to the user so the brightness filter is hidden in the background
+          if (videoRef.current) {
+            ctx.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
+          } else {
+            ctx.drawImage(results.image, 0, 0, canvasRef.current.width, canvasRef.current.height);
+          }
 
           if (w.drawConnectors) {
             if (currentMode === 'asl') {
