@@ -27,7 +27,6 @@ export default function LandingPage() {
           <Link href="/motives">Motives</Link>
           <Link href="/team">Team</Link>
           <Link href="/about">About</Link>
-          <button className="ghost-btn">Sign In</button>
           <button 
             onClick={() => router.push('/live')} 
             style={{ 
