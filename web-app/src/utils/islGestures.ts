@@ -5,6 +5,7 @@ export type ISLWordId =
   | 'PLEASE' | 'SORRY' | 'HELP' | 'WAIT' | 'STOP' | 'I_LOVE_YOU'
   | 'DONE' | 'MORE' | 'EAT' | 'DRINK' | 'TIME' | 'WATER'
   | 'TOILET' | 'FRIEND' | 'HOUSE' | 'CAR' | 'LATE' | 'PERFECT' | 'MONEY'
+  | 'YOU' | 'ME' | 'WHERE' | 'WHEN' | 'BEAUTIFUL' | 'ANGRY' | 'HAPPY' | 'SAD'
   | 'UNKNOWN';
 
 export interface ISLDefinition {
@@ -44,5 +45,16 @@ export const ISL_MAP: Record<ISLWordId, ISLDefinition> = {
   FRIEND: { id: 'FRIEND', label: 'Friend', emoji: '🤝', phrase: 'Friend', sentence: 'You are a very good friend of mine.', isUtility: false, description: 'Right Index, Left Index' },
   HOUSE: { id: 'HOUSE', label: 'House', emoji: '🏠', phrase: 'House', sentence: 'I want to go back to my house now.', isUtility: false, description: 'Right Pinky, Left Pinky' },
   CAR: { id: 'CAR', label: 'Car', emoji: '🚗', phrase: 'Car', sentence: 'Let us take the car and go for a drive.', isUtility: false, description: 'Right Fist, Left Fist' },
+  
+  // ── New Gestures based on downward / orientations ──
+  YOU: { id: 'YOU', label: 'You', emoji: '🫵', phrase: 'You', sentence: 'Are you coming with us?', isUtility: false, description: 'Index pointing forward/side' },
+  ME: { id: 'ME', label: 'Me', emoji: '🙋', phrase: 'Me', sentence: 'I am going to do it.', isUtility: false, description: 'Index pointing at self / down' },
+  WHERE: { id: 'WHERE', label: 'Where', emoji: '🤷', phrase: 'Where', sentence: 'Where are we going?', isUtility: false, description: 'Both Open Palms Up' },
+  WHEN: { id: 'WHEN', label: 'When', emoji: '🗓️', phrase: 'When', sentence: 'When does this happen?', isUtility: false, description: 'Index pointing to wrist' },
+  BEAUTIFUL: { id: 'BEAUTIFUL', label: 'Beautiful', emoji: '✨', phrase: 'Beautiful', sentence: 'That is incredibly beautiful.', isUtility: false, description: 'Open Palm expanding around face' },
+  ANGRY: { id: 'ANGRY', label: 'Angry', emoji: '😠', phrase: 'Angry', sentence: 'I am feeling quite angry.', isUtility: false, description: 'Claw fingers near face' },
+  HAPPY: { id: 'HAPPY', label: 'Happy', emoji: '😄', phrase: 'Happy', sentence: 'I am so happy to see you!', isUtility: false, description: 'Both Palms sweeping up' },
+  SAD: { id: 'SAD', label: 'Sad', emoji: '😢', phrase: 'Sad', sentence: 'I am feeling very sad right now.', isUtility: false, description: 'Both Palms sweeping down' },
+  
   UNKNOWN: { id: 'UNKNOWN', label: 'Unknown', emoji: '❓', phrase: '', isUtility: true, description: 'Unrecognised pose' },
 };

@@ -32,33 +32,62 @@ function dist(a: any, b: any): number {
 }
 
 interface FingerState {
-  thumb: boolean; index: boolean; middle: boolean; ring: boolean; pinky: boolean; thumbPointsUp: boolean;
+  thumb: boolean; index: boolean; middle: boolean; ring: boolean; pinky: boolean;
+  thumbPointsUp: boolean; thumbPointsDown: boolean; thumbPointsSide: boolean;
+  pointsUp: boolean; pointsDown: boolean; pointsSide: boolean;
+  wristY: number; wristX: number;
 }
 
-const EMPTY_STATE: FingerState = { thumb: false, index: false, middle: false, ring: false, pinky: false, thumbPointsUp: false };
+const EMPTY_STATE: FingerState = { 
+  thumb: false, index: false, middle: false, ring: false, pinky: false, 
+  thumbPointsUp: false, thumbPointsDown: false, thumbPointsSide: false,
+  pointsUp: false, pointsDown: false, pointsSide: false,
+  wristY: 0, wristX: 0
+};
 
 function isFingerUp(tip: any, dip: any, pip: any, mcp: any): boolean {
   const pipAngle = angleAt(mcp, pip, tip);
   const dipAngle = angleAt(pip, dip, tip);
-  return (pipAngle > 155 && dipAngle > 150) || (tip.y < pip.y - 0.02);
+  const distTipMcp = dist(tip, mcp);
+  const distPipMcp = dist(pip, mcp);
+  return ((pipAngle > 150 && dipAngle > 140) || distTipMcp > distPipMcp * 1.3);
 }
 
-function isThumbUp(lm: any[]): { extended: boolean; pointsUp: boolean } {
+function isThumbUp(lm: any[]): { extended: boolean; up: boolean; down: boolean; side: boolean } {
   const thumbMcp = lm[2], thumbIp = lm[3], thumbTip = lm[4];
   const ipAngle = angleAt(thumbMcp, thumbIp, thumbTip);
   const handSize = dist(lm[0], lm[9]) || 0.01; 
   const tipToPalm = dist(thumbTip, lm[9]);
-  return { 
-    extended: (ipAngle > 140) && (tipToPalm > handSize * 0.85),
-    pointsUp: thumbTip.y < thumbMcp.y
-  };
+  
+  const extended = (ipAngle > 140) && (tipToPalm > handSize * 0.85);
+  const up = thumbTip.y < thumbMcp.y - 0.05;
+  const down = thumbTip.y > thumbMcp.y + 0.05;
+  const side = !up && !down;
+  
+  return { extended, up, down, side };
 }
 
 function detectFingers(lm: any[]): FingerState {
   if (!lm || lm.length < 21) return EMPTY_STATE;
-  const { extended: thumb, pointsUp: thumbPointsUp } = isThumbUp(lm);
+  const thumbState = isThumbUp(lm);
+  
+  // Calculate hand orientation (is hand pointing up or down?)
+  const wristY = lm[0].y;
+  const wristX = lm[0].x;
+  const mcpAvgY = (lm[5].y + lm[9].y + lm[13].y + lm[17].y) / 4;
+  const mcpAvgX = (lm[5].x + lm[9].x + lm[13].x + lm[17].x) / 4;
+  
+  const pointsUp = mcpAvgY < wristY - 0.05;
+  const pointsDown = mcpAvgY > wristY + 0.05;
+  const pointsSide = !pointsUp && !pointsDown;
+
   return {
-    thumb, thumbPointsUp,
+    thumb: thumbState.extended,
+    thumbPointsUp: thumbState.up,
+    thumbPointsDown: thumbState.down,
+    thumbPointsSide: thumbState.side,
+    pointsUp, pointsDown, pointsSide,
+    wristY, wristX,
     index:  isFingerUp(lm[8],  lm[7],  lm[6],  lm[5]),
     middle: isFingerUp(lm[12], lm[11], lm[10], lm[9]),
     ring:   isFingerUp(lm[16], lm[15], lm[14], lm[13]),
@@ -68,21 +97,41 @@ function detectFingers(lm: any[]): FingerState {
 
 // ── Custom Gesture Classifier ──────────────────────────────────────────────
 function classifyCustom(fs: FingerState): GestureId {
-  const { thumb, index, middle, ring, pinky, thumbPointsUp } = fs;
-  if (!thumb && !index && !middle && !ring && !pinky) return 'FIST';
-  if (thumb && index && middle && ring && pinky) return 'OPEN_PALM';
-  if (thumb && !index && !middle && !ring && !pinky) return thumbPointsUp ? 'THUMB_UP' : 'THUMB_DOWN';
-  if (!thumb && index && middle && ring && pinky) return 'FOUR';
-  if (!thumb && index && middle && ring && !pinky) return 'THREE';
-  if (!thumb && index && middle && !ring && !pinky) return 'PEACE';
-  if (!thumb && index && !middle && !ring && !pinky) return 'INDEX';
-  if (!thumb && !index && !middle && !ring && pinky) return 'PINKY';
-  if (!thumb && index && !middle && !ring && pinky) return 'ROCK';
+  const { thumb, index, middle, ring, pinky, pointsUp, pointsDown, pointsSide, thumbPointsUp, thumbPointsDown, thumbPointsSide } = fs;
+  
+  if (!thumb && !index && !middle && !ring && !pinky) return pointsDown ? 'FIST_DOWN' : 'FIST';
+  if (thumb && index && middle && ring && pinky) return pointsDown ? 'OPEN_PALM_DOWN' : 'OPEN_PALM';
+  
+  if (!thumb && index && !middle && !ring && !pinky) {
+    if (pointsDown) return 'INDEX_DOWN';
+    if (pointsSide) return 'INDEX_SIDE';
+    return 'INDEX';
+  }
+  
+  if (thumb && !index && !middle && !ring && !pinky) {
+    if (thumbPointsUp) return 'THUMB_UP';
+    if (thumbPointsDown) return 'THUMB_DOWN';
+    if (thumbPointsSide) return 'THUMB_SIDE';
+  }
+  
+  if (!thumb && index && middle && !ring && !pinky) return pointsDown ? 'PEACE_DOWN' : 'PEACE';
+  if (!thumb && index && middle && ring && !pinky) return pointsDown ? 'THREE_DOWN' : 'THREE';
+  if (!thumb && index && !middle && !ring && pinky) return pointsDown ? 'ROCK_DOWN' : 'ROCK';
+  if (thumb && index && !middle && !ring && !pinky) {
+    if (pointsDown) return 'L_SHAPE_DOWN';
+    const cShape = dist({x: fs.wristX, y: fs.wristY}, {x: fs.wristX, y: fs.wristY}) < 0.1; // Placeholder for C/O shape logic using actual landmarks if needed, fallback to L_SHAPE
+    return 'L_SHAPE';
+  }
+  
   if (thumb && index && !middle && !ring && pinky) return 'ILY';
   if (thumb && !index && !middle && !ring && pinky) return 'SHAKA';
-  if (thumb && index && !middle && !ring && !pinky) return 'L_SHAPE';
+  
   if (thumb && index && middle && !ring && !pinky) return 'THREE_THUMB';
   if (thumb && index && middle && ring && !pinky) return 'FOUR_THUMB';
+  
+  if (!thumb && index && middle && ring && pinky) return 'FOUR';
+  if (!thumb && !index && !middle && !ring && pinky) return 'PINKY';
+
   return 'UNKNOWN';
 }
 
@@ -93,6 +142,9 @@ function classifyTwoHandCustom(rightLm: any[], leftLm: any[]): GestureId | null 
   if (rId === 'OPEN_PALM' && lId === 'OPEN_PALM') return 'BOTH_OPEN';
   if (rId === 'PEACE' && lId === 'PEACE') return 'BOTH_PEACE';
   if (rId === 'THUMB_UP' && lId === 'THUMB_UP') return 'BOTH_THUMB_UP';
+  if (rId === 'THUMB_DOWN' && lId === 'THUMB_DOWN') return 'BOTH_THUMB_DOWN';
+  if (rId === 'INDEX' && lId === 'INDEX') return 'BOTH_INDEX';
+  if (rId === 'ROCK' && lId === 'ROCK') return 'BOTH_ROCK';
   return null;
 }
 
@@ -106,8 +158,10 @@ function classifyISL(rightLm: any[], leftLm: any[]): ISLWordId {
 
   // Two Hands Matching
   if (rPose === 'OPEN_PALM' && lPose === 'OPEN_PALM') return 'STOP';
+  if (rPose === 'OPEN_PALM_DOWN' && lPose === 'OPEN_PALM_DOWN') return 'SAD';
   if (rPose === 'FIST' && lPose === 'FIST') return 'DONE';
   if (rPose === 'INDEX' && lPose === 'INDEX') return 'FRIEND';
+  if (rPose === 'INDEX_SIDE' && lPose === 'INDEX_SIDE') return 'WHERE';
   if (rPose === 'PINKY' && lPose === 'PINKY') return 'HOUSE';
   if (rPose === 'ROCK' && lPose === 'ROCK') return 'CAR';
   if (rPose === 'THREE_THUMB' && lPose === 'THREE_THUMB') return 'MORE';
@@ -119,6 +173,7 @@ function classifyISL(rightLm: any[], leftLm: any[]): ISLWordId {
   if (rPose === 'THUMB_UP' && lPose === 'OPEN_PALM') return 'HELP';
   if (rPose === 'THREE_THUMB' && lPose === 'OPEN_PALM') return 'MONEY';
   if (rPose === 'INDEX' && lPose === 'FIST') return 'TIME';
+  if (rPose === 'INDEX_DOWN' && lPose === 'OPEN_PALM_DOWN') return 'WHEN';
 
   // One Hand (Right)
   if (!hasL) {
@@ -134,6 +189,8 @@ function classifyISL(rightLm: any[], leftLm: any[]): ISLWordId {
     if (rPose === 'ROCK') return 'TOILET';
     if (rPose === 'L_SHAPE') return 'LATE';
     if (rPose === 'SHAKA') return 'PERFECT';
+    if (rPose === 'INDEX_SIDE') return 'YOU';
+    if (rPose === 'INDEX_DOWN') return 'ME';
   }
 
   // One Hand (Left)
@@ -180,6 +237,8 @@ export default function DetectorEngine({
 }: DetectorEngineProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const preprocessorCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
   
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [statusMsg, setStatusMsg]         = useState('Starting camera…');
@@ -283,14 +342,25 @@ export default function DetectorEngine({
         holistic.onResults(onResults);
 
         if (videoRef.current) {
+          // Initialize invisible preprocessing canvas for GOD LEVEL low light
+          const preCanvas = document.createElement('canvas');
+          preCanvas.width = 320;
+          preCanvas.height = 240;
+          preprocessorCanvasRef.current = preCanvas;
+          const preCtx = preCanvas.getContext('2d', { willReadFrequently: true });
+
           camera = new w.Camera(videoRef.current, {
             onFrame: async () => {
-              if (videoRef.current && holistic && alive) {
-                await holistic.send({ image: videoRef.current });
+              if (videoRef.current && preprocessorCanvasRef.current && preCtx && holistic && alive) {
+                // Apply Brightness/Contrast Filter before sending to MediaPipe
+                preCtx.filter = 'brightness(1.5) contrast(1.2)';
+                preCtx.drawImage(videoRef.current, 0, 0, preCanvas.width, preCanvas.height);
+                // Send the processed canvas instead of raw video for instant inference
+                await holistic.send({ image: preprocessorCanvasRef.current });
               }
             },
-            width: window.innerHeight > window.innerWidth ? 480 : 640,
-            height: window.innerHeight > window.innerWidth ? 640 : 480,
+            width: 320,
+            height: 240,
           });
           camera.start().then(() => {
             if (alive) setStatusMsg((aslModelRef.current && islModelRef.current) ? '' : 'Starting up…');
@@ -449,7 +519,6 @@ export default function DetectorEngine({
       heurConfirmRef.current = 0;
       historyRef.current = [];  
       
-      // Global Jedi Mode Cycle & Actions (Using completely UNUSED gestures)
       if (gesture === 'FOUR') { onModeSwitch('cycle' as any); return; }
       
       // Universal Action Gestures
@@ -464,6 +533,8 @@ export default function DetectorEngine({
       } else {
         const textToSpeak = (outputModeRef.current === 'sentence' && def.sentence) ? def.sentence : (def.phrase || def.label);
         if (textToSpeak) {
+          // BUG FIX: Ensure Word Detected triggers properly for custom mode so text appears!
+          onWordDetected(textToSpeak);
           ttsRef.current?.speak(textToSpeak, voicePrefRef.current);
           onSentenceDetected(textToSpeak, gesture as any);
         }

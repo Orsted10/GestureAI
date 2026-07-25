@@ -1256,7 +1256,6 @@ body::after {
   border-color: var(--border-bright);
   box-shadow: 0 20px 40px rgba(0,0,0,0.1);
 }
-}
 
 .nav-links {
   display: flex;
