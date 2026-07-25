@@ -1,12 +1,36 @@
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Layers, Camera, Cpu, Code } from 'lucide-react';
 
 export default function TeamPage() {
   const team = [
-    { name: "Unnati Mishra", role: "Core Architecture", init: "UM" },
-    { name: "Ankan Bhattacharjee", role: "Kinematic Logic", init: "AB" },
-    { name: "Shivam Kumar Tiwari", role: "Systems Engineer", init: "SK" },
-    { name: "Rishi Kumar Singh", role: "Machine Learning", init: "RS" }
+    { 
+      name: "Ankan Bhattacharjee", 
+      role: "Lead Systems Architect & Technical Lead", 
+      icon: <Layers size={32} />,
+      desc: "Architects the core systems and drives the technical vision end-to-end.",
+      tags: ["System Architecture", "Scalability", "AI/Edge Systems", "Performance"]
+    },
+    { 
+      name: "Unnati Mishra", 
+      role: "Computer Vision & AI/ML Engineer", 
+      icon: <Camera size={32} />,
+      desc: "Builds intelligent models that understand gestures and interpret them in real-time.",
+      tags: ["Computer Vision", "AI/ML", "Deep Learning", "Model Optimization"]
+    },
+    { 
+      name: "Shivam Kumar Tiwari", 
+      role: "Embedded Systems & Hardware Integration Engineer", 
+      icon: <Cpu size={32} />,
+      desc: "Designs and integrates embedded hardware for seamless on-device performance.",
+      tags: ["Embedded Systems", "IoT", "Hardware Design", "Prototyping"]
+    },
+    { 
+      name: "Rishi Kumar Singh", 
+      role: "Full-Stack Application & Backend Engineer", 
+      icon: <Code size={32} />,
+      desc: "Builds robust applications and scalable backends that power the platform.",
+      tags: ["Full-Stack", "Backend", "APIs", "DevOps"]
+    }
   ];
 
   return (
@@ -23,9 +47,15 @@ export default function TeamPage() {
         <div className="team-grid mt-12">
           {team.map(member => (
             <div key={member.name} className="team-card">
-              <div className="team-avatar">{member.init}</div>
+              <div className="team-avatar">{member.icon}</div>
               <h3>{member.name}</h3>
-              <p>{member.role}</p>
+              <p className="team-role">{member.role}</p>
+              <p className="team-desc">{member.desc}</p>
+              <div className="team-tags">
+                {member.tags.map(tag => (
+                  <span key={tag} className="team-tag">{tag}</span>
+                ))}
+              </div>
             </div>
           ))}
         </div>
