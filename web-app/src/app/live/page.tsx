@@ -32,15 +32,22 @@ async function speakText(text: string, voicePref: 'female' | 'male' = 'female', 
   else langCode = 'en-IN'; 
 
   try {
-    const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
-    await TextToSpeech.speak({ text, lang: langCode, rate: 0.88, pitch: voicePref === 'female' ? 1.2 : 0.85, volume: 1.0 }); 
-  } catch {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utter  = new SpeechSynthesisUtterance(text);
-    utter.lang   = langCode; 
-    utter.rate   = 0.88;
-    utter.pitch  = voicePref === 'female' ? 1.2 : 0.85;
+    const { Capacitor } = await import('@capacitor/core');
+    if (Capacitor.isNativePlatform()) {
+      const { TextToSpeech } = await import('@capacitor-community/text-to-speech');
+      await TextToSpeech.speak({ text, lang: langCode, rate: 0.88, pitch: voicePref === 'female' ? 1.2 : 0.85, volume: 1.0 }); 
+      return;
+    }
+  } catch (e) {
+    // Ignore error and fall through to web implementation
+  }
+
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utter  = new SpeechSynthesisUtterance(text);
+  utter.lang   = langCode; 
+  utter.rate   = 0.88;
+  utter.pitch  = voicePref === 'female' ? 1.2 : 0.85;
     
     const voices = window.speechSynthesis.getVoices();
     let targetNames: string[] = [];
@@ -59,8 +66,6 @@ async function speakText(text: string, voicePref: 'female' | 'male' = 'female', 
     if (best) utter.voice = best;
     window.speechSynthesis.speak(utter);
   }
-}
-
 const PREDICTIONS: Record<string, string[]> = {
   'HELLO': ['how are you?', 'my friend'],
   'PLEASE': ['help me', 'wait a moment'],

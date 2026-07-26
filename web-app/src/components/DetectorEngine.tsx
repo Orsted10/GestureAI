@@ -252,6 +252,7 @@ export default function DetectorEngine({
   const outputModeRef      = useRef(outputMode);
   const voicePrefRef       = useRef(voicePref);
   const isPausedRef        = useRef(isPaused);
+  const callbacksRef       = useRef({ onWordDetected, onSignUpdate, onSentenceDetected, onGestureUpdate, onUniversalAction, onModeSwitch });
 
   // Buffer state
   const frameBufferRef     = useRef<number[][][]>([]);
@@ -276,7 +277,8 @@ export default function DetectorEngine({
     outputModeRef.current = outputMode;
     voicePrefRef.current = voicePref;
     isPausedRef.current = isPaused;
-  }, [mode, outputMode, voicePref, isPaused]);
+    callbacksRef.current = { onWordDetected, onSignUpdate, onSentenceDetected, onGestureUpdate, onUniversalAction, onModeSwitch };
+  }, [mode, outputMode, voicePref, isPaused, onWordDetected, onSignUpdate, onSentenceDetected, onGestureUpdate, onUniversalAction, onModeSwitch]);
 
   useEffect(() => {
     let camera: any  = null;
@@ -440,14 +442,14 @@ export default function DetectorEngine({
 
           const REQUIRED_CONFIRM = currentMode === 'isl' ? 1 : ASL_CONFIRM;
           const progress = Math.min(candidateCountRef.current / REQUIRED_CONFIRM, 1);
-          onSignUpdate(sign, conf, progress);
+          callbacksRef.current.onSignUpdate(sign, conf, progress);
 
           if (candidateCountRef.current >= REQUIRED_CONFIRM) {
             lastCommitTimeRef.current = now;
             candidateSignRef.current  = '';
             candidateCountRef.current = 0;
             frameBufferRef.current = [];
-            onWordDetected(sign);
+            callbacksRef.current.onWordDetected(sign);
             ttsRef.current?.speak(sign);
           }
         } else {
@@ -455,8 +457,8 @@ export default function DetectorEngine({
             candidateSignRef.current  = '';
             candidateCountRef.current = 0;
           }
-          if (inCooldown) onSignUpdate(candidateSignRef.current || '', conf, 0);
-          else onSignUpdate('', conf, 0);
+          if (inCooldown) callbacksRef.current.onSignUpdate(candidateSignRef.current || '', conf, 0);
+          else callbacksRef.current.onSignUpdate('', conf, 0);
         }
       });
     } catch (e) {
@@ -487,7 +489,7 @@ export default function DetectorEngine({
     const gesture = modeVote(hist);  
 
     if (inCooldown) {
-      onGestureUpdate('UNKNOWN' as any, 0);
+      callbacksRef.current.onGestureUpdate('UNKNOWN' as any, 0);
       return;
     }
 
@@ -497,7 +499,7 @@ export default function DetectorEngine({
         heurCandidateRef.current = 'UNKNOWN';
         heurConfirmRef.current = 0;
       }
-      onGestureUpdate('UNKNOWN' as any, 0);
+      callbacksRef.current.onGestureUpdate('UNKNOWN' as any, 0);
       return;
     }
 
@@ -511,7 +513,7 @@ export default function DetectorEngine({
     }
 
     const progress = Math.min(heurConfirmRef.current / HEURISTIC_CONFIRM, 1);
-    onGestureUpdate(gesture as any, progress);
+    callbacksRef.current.onGestureUpdate(gesture as any, progress);
 
     if (heurConfirmRef.current >= HEURISTIC_CONFIRM) {
       heurLastCommit.current = now;
@@ -519,7 +521,7 @@ export default function DetectorEngine({
       heurConfirmRef.current = 0;
       historyRef.current = [];  
       
-      if (gesture === 'FOUR') { onModeSwitch('cycle' as any); return; }
+      if (gesture === 'FOUR') { callbacksRef.current.onModeSwitch('cycle' as any); return; }
       
       // IDE Mode Support
       if (currentMode === 'ide') {
@@ -528,28 +530,28 @@ export default function DetectorEngine({
         
         // Treat INDEX as RUN code, FIST as DEL, BOTH_FISTS as CLEAR
         if (gesture === 'INDEX' || gesture === 'PINKY' || gesture === 'FIST' || gesture === 'BOTH_FISTS') {
-           onSentenceDetected(ideDef.code, gesture as any);
+           callbacksRef.current.onSentenceDetected(ideDef.code, gesture as any);
            return;
         }
-        onSentenceDetected(ideDef.code, gesture as any);
+        callbacksRef.current.onSentenceDetected(ideDef.code, gesture as any);
         return;
       }
 
       // Universal Action Gestures
-      if (gesture === 'INDEX') { onUniversalAction('speak'); return; }
-      if (gesture === 'PINKY') { onUniversalAction('polish'); return; }
+      if (gesture === 'INDEX') { callbacksRef.current.onUniversalAction('speak'); return; }
+      if (gesture === 'PINKY') { callbacksRef.current.onUniversalAction('polish'); return; }
 
       const def = currentMode === 'isl' ? ISL_MAP[gesture as ISLWordId] : GESTURE_MAP[gesture as GestureId];
       if (!def) return;
 
       if (def.isUtility) {
-        onSentenceDetected('', gesture as any);
+        callbacksRef.current.onSentenceDetected('', gesture as any);
       } else {
         const textToSpeak = (outputModeRef.current === 'sentence' && def.sentence) ? def.sentence : (def.phrase || def.label);
         if (textToSpeak) {
           // Send to onSentenceDetected which updates the UI text
           ttsRef.current?.speak(textToSpeak, voicePrefRef.current);
-          onSentenceDetected(textToSpeak, gesture as any);
+          callbacksRef.current.onSentenceDetected(textToSpeak, gesture as any);
         }
       }
     }
@@ -581,9 +583,9 @@ export default function DetectorEngine({
     else { heurCandidateRef.current = gesture; heurConfirmRef.current = 2; }
     
     if (heurConfirmRef.current >= HEURISTIC_CONFIRM) {
-      if (gesture === 'FOUR') { heurLastCommit.current = now; onModeSwitch('cycle' as any); return; }
-      if (gesture === 'INDEX') { heurLastCommit.current = now; onUniversalAction('speak'); return; }
-      if (gesture === 'PINKY') { heurLastCommit.current = now; onUniversalAction('polish'); return; }
+      if (gesture === 'FOUR') { heurLastCommit.current = now; callbacksRef.current.onModeSwitch('cycle' as any); return; }
+      if (gesture === 'INDEX') { heurLastCommit.current = now; callbacksRef.current.onUniversalAction('speak'); return; }
+      if (gesture === 'PINKY') { heurLastCommit.current = now; callbacksRef.current.onUniversalAction('polish'); return; }
     }
   }
 
