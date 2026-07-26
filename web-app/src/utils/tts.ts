@@ -79,7 +79,13 @@ export class TTSManager {
       synth.cancel(); 
 
       let langCode = 'en-US';
-      if (targetLang === 'hi') langCode = 'hi-IN';
+      if (targetLang === 'hi') {
+        const audio = new Audio(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=hi&q=${encodeURIComponent(text)}`);
+        audio.onended = () => resolve();
+        audio.onerror = (e) => reject(e);
+        audio.play().catch(e => reject(e));
+        return;
+      }
       else if (targetLang === 'es') langCode = 'es-ES';
       else langCode = 'en-IN'; 
 
@@ -92,9 +98,7 @@ export class TTSManager {
       const voices = synth.getVoices();
       let targetNames: string[] = [];
       
-      if (targetLang === 'hi') {
-        targetNames = voicePref === 'female' ? ['swara', 'google हिन्दी', 'aditi', 'veena', 'female'] : ['madhur', 'google हिन्दी', 'male'];
-      } else if (targetLang === 'es') {
+      if (targetLang === 'es') {
         targetNames = voicePref === 'female' ? ['helena', 'laura', 'monica', 'female'] : ['pablo', 'jorge', 'male'];
       } else {
         targetNames = voicePref === 'female' ? ['veena', 'samantha', 'victoria', 'karen', 'moira', 'zira', 'google us english', 'female'] : ['rishi', 'daniel', 'david', 'mark', 'arthur', 'male'];
@@ -112,7 +116,7 @@ export class TTSManager {
         };
         synth.speak(utter);
       } else {
-        const audio = new Audio(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langCode.split('-')[0]}&client=tw-ob`);
+        const audio = new Audio(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${langCode.split('-')[0]}&q=${encodeURIComponent(text)}`);
         audio.onended = () => resolve();
         audio.onerror = (e) => {
           console.error('TTS Fallback failed', e);

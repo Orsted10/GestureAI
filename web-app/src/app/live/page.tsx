@@ -44,6 +44,14 @@ async function speakText(text: string, voicePref: 'female' | 'male' = 'female', 
 
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
   window.speechSynthesis.cancel();
+  
+  // Force Cloud TTS for Hindi on web to avoid silent failures on Windows without language packs
+  if (targetLang === 'hi') {
+    const audio = new Audio(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=hi&q=${encodeURIComponent(text)}`);
+    audio.play().catch(e => console.error('Cloud TTS failed', e));
+    return;
+  }
+
   const utter  = new SpeechSynthesisUtterance(text);
   utter.lang   = langCode; 
   utter.rate   = 0.88;
@@ -51,9 +59,7 @@ async function speakText(text: string, voicePref: 'female' | 'male' = 'female', 
     
     const voices = window.speechSynthesis.getVoices();
     let targetNames: string[] = [];
-    if (targetLang === 'hi') {
-      targetNames = voicePref === 'female' ? ['swara', 'google हिन्दी', 'aditi', 'veena', 'female'] : ['madhur', 'google हिन्दी', 'male'];
-    } else if (targetLang === 'es') {
+    if (targetLang === 'es') {
       targetNames = voicePref === 'female' ? ['helena', 'laura', 'monica', 'female'] : ['pablo', 'jorge', 'male'];
     } else {
       targetNames = voicePref === 'female' ? ['veena', 'samantha', 'victoria', 'karen', 'moira', 'zira', 'google us english', 'female'] : ['rishi', 'daniel', 'david', 'mark', 'arthur', 'male'];
@@ -67,8 +73,8 @@ async function speakText(text: string, voicePref: 'female' | 'male' = 'female', 
       utter.voice = best;
       window.speechSynthesis.speak(utter);
     } else {
-      // Fallback: If OS lacks the language voice (e.g. Hindi on Windows), use Cloud TTS
-      const audio = new Audio(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langCode.split('-')[0]}&client=tw-ob`);
+      // Fallback: If OS lacks the language voice, use Cloud TTS
+      const audio = new Audio(`https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=${langCode.split('-')[0]}&q=${encodeURIComponent(text)}`);
       audio.play().catch(e => {
         console.error('TTS Fallback failed', e);
         window.speechSynthesis.speak(utter); // last resort
