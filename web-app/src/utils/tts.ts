@@ -104,14 +104,25 @@ export class TTSManager {
       if (!best) best = voices.find(v => v.lang.startsWith(langCode));
       if (!best) best = voices.find(v => v.lang.startsWith(langCode.split('-')[0]));
 
-      if (best) utter.voice = best;
-
-      utter.onend   = () => resolve();
-      utter.onerror = e => {
-        if (e.error === 'interrupted') resolve(); else reject(e);
-      };
-
-      synth.speak(utter);
+      if (best) {
+        utter.voice = best;
+        utter.onend = () => resolve();
+        utter.onerror = e => {
+          if (e.error === 'interrupted') resolve(); else reject(e);
+        };
+        synth.speak(utter);
+      } else {
+        const audio = new Audio(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langCode.split('-')[0]}&client=tw-ob`);
+        audio.onended = () => resolve();
+        audio.onerror = (e) => {
+          console.error('TTS Fallback failed', e);
+          synth.speak(utter); // last resort
+        };
+        audio.play().catch(e => {
+          console.error('TTS Fallback play failed', e);
+          synth.speak(utter);
+        });
+      }
     });
   }
 

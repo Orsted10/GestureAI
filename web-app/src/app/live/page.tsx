@@ -63,8 +63,17 @@ async function speakText(text: string, voicePref: 'female' | 'male' = 'female', 
     if (!best) best = voices.find(v => v.lang.startsWith(langCode));
     if (!best) best = voices.find(v => v.lang.startsWith(langCode.split('-')[0]));
     
-    if (best) utter.voice = best;
-    window.speechSynthesis.speak(utter);
+    if (best) {
+      utter.voice = best;
+      window.speechSynthesis.speak(utter);
+    } else {
+      // Fallback: If OS lacks the language voice (e.g. Hindi on Windows), use Cloud TTS
+      const audio = new Audio(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${langCode.split('-')[0]}&client=tw-ob`);
+      audio.play().catch(e => {
+        console.error('TTS Fallback failed', e);
+        window.speechSynthesis.speak(utter); // last resort
+      });
+    }
   }
 const PREDICTIONS: Record<string, string[]> = {
   'HELLO': ['how are you?', 'my friend'],
