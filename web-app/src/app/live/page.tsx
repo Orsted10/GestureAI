@@ -7,7 +7,7 @@ import {
   CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap, MessageSquare,
   Moon, Sun, Activity, Sparkles, Globe, Heart, ChevronDown, Play, Pause
 } from 'lucide-react';
-import { GESTURE_MAP, GESTURE_LIST, type GestureId } from '@/utils/fingerGestures';
+import { GESTURE_MAP, GESTURE_LIST, IDE_MAP, type GestureId } from '@/utils/fingerGestures';
 import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
 import LearnModePanel from '@/components/LearnModePanel';
 
@@ -419,7 +419,9 @@ sys.stdout = io.StringIO()
   // Current gesture definition (for display)
   const activeDef = mode === 'isl' 
     ? (ISL_MAP[activeGesture as ISLWordId] ?? ISL_MAP.UNKNOWN)
-    : (GESTURE_MAP[activeGesture] ?? GESTURE_MAP.UNKNOWN);
+    : mode === 'ide'
+      ? (IDE_MAP[activeGesture as GestureId] ?? { id: 'UNKNOWN', label: 'Unknown', emoji: '❓', code: '', description: '' })
+      : (GESTURE_MAP[activeGesture as GestureId] ?? GESTURE_MAP.UNKNOWN);
 
   return (
     <div className="app-wrapper">
@@ -639,7 +641,7 @@ sys.stdout = io.StringIO()
                     </button>
                   </div>
                 </div>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
                   <textarea 
                     value={ideCode}
                     onChange={(e) => setIdeCode(e.target.value)}
@@ -658,7 +660,7 @@ sys.stdout = io.StringIO()
                     spellCheck={false}
                   />
                   <div style={{
-                    height: '30%',
+                    height: '25%',
                     background: '#0f172a',
                     color: '#e2e8f0',
                     fontFamily: 'monospace',
@@ -670,6 +672,31 @@ sys.stdout = io.StringIO()
                     fontSize: '0.85rem'
                   }}>
                     {ideOutput || 'Output will appear here...'}
+                  </div>
+                </div>
+
+                <div style={{ height: '35%', borderTop: '1px solid var(--border)', paddingTop: '0.8rem', overflowY: 'auto' }}>
+                  <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>IDE Gestures (Hover for details)</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {Object.values(IDE_MAP).map(def => (
+                      <div key={def.id} title={def.description} style={{
+                        background: 'var(--bg-elevated)',
+                        padding: '0.4rem 0.8rem',
+                        borderRadius: '6px',
+                        fontSize: '0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        border: '1px solid var(--border)',
+                        cursor: 'help'
+                      }}>
+                        <span>{def.emoji}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{def.label}</span>
+                        <span style={{ color: 'var(--accent)', fontSize: '0.75rem', marginLeft: '0.2rem', fontFamily: 'monospace' }}>
+                          {def.code === 'RUN' || def.code === 'BACKSPACE' || def.code === 'CLEAR' ? `[${def.code}]` : `'${def.code.trim()}'`}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
