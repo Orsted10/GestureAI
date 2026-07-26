@@ -21,7 +21,7 @@ export default function LandingPage() {
   return (
     <div className="page-container" style={{ background: 'var(--bg-base)' }}>
       {/* Navigation */}
-      <nav className="landing-nav">
+      <nav className="landing-nav" style={{ width: '100%' }}>
         <div className="brand-logo">GestureAI</div>
         <div className="nav-links">
           <Link href="/motives">Motives</Link>
