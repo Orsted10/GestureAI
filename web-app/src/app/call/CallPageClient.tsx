@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, MessageSquare, ArrowLeft } from 'lucide-react';
 import { TTSManager } from '@/utils/tts';
+import DetectorEngine from '@/components/DetectorEngine';
+import { GestureId } from '@/utils/fingerGestures';
 
 export default function CallPage() {
   const [peerId, setPeerId] = useState('');
@@ -18,7 +20,6 @@ export default function CallPage() {
   const [micEnabled, setMicEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
 
-  const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   
   const peerRef = useRef<any>(null);
@@ -70,31 +71,17 @@ export default function CallPage() {
     });
   };
 
-  const startMediaStream = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      streamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-      return stream;
-    } catch (err) {
-      console.error("Failed to get local stream", err);
-      return null;
-    }
-  };
-
   const handleCall = async () => {
     if (!remotePeerId || !peerRef.current) return;
     
     setIsCalling(true);
-    const stream = await startMediaStream();
-    if (!stream) {
+    if (!streamRef.current) {
+      alert("Camera not ready yet. Please wait.");
       setIsCalling(false);
       return;
     }
 
-    const call = peerRef.current.call(remotePeerId, stream);
+    const call = peerRef.current.call(remotePeerId, streamRef.current);
     const conn = peerRef.current.connect(remotePeerId);
     
     setupDataConnection(conn);
@@ -113,9 +100,8 @@ export default function CallPage() {
   const answerCall = async () => {
     if (!incomingCall) return;
     
-    const stream = await startMediaStream();
-    if (stream) {
-      incomingCall.answer(stream);
+    if (streamRef.current) {
+      incomingCall.answer(streamRef.current);
       incomingCall.on('stream', (remoteStream: MediaStream) => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = remoteStream;
@@ -124,26 +110,26 @@ export default function CallPage() {
       });
       callRef.current = incomingCall;
       setIncomingCall(null);
+    } else {
+      alert("Camera not ready yet.");
     }
   };
 
   const endCall = () => {
     callRef.current?.close();
     connRef.current?.close();
-    streamRef.current?.getTracks().forEach(track => track.stop());
     
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     
     setIsConnected(false);
     setIncomingCall(null);
   };
 
-  const sendMessage = () => {
-    if (!chatInput.trim() || !connRef.current) return;
+  const sendMessage = (text: string = chatInput) => {
+    if (!text.trim() || !connRef.current) return;
     
-    connRef.current.send(chatInput);
-    setMessages(prev => [...prev, { sender: 'You', text: chatInput }]);
+    connRef.current.send(text);
+    setMessages(prev => [...prev, { sender: 'You', text: text }]);
     setChatInput('');
   };
 
@@ -189,6 +175,13 @@ export default function CallPage() {
     }
   };
 
+  // Gesture Engine Callbacks
+  const handleSentenceDetected = (phrase: string, gestureId?: string) => {
+    if (isConnected) {
+      sendMessage(`(Gesture) ${phrase}`);
+    }
+  };
+
   return (
     <div className="call-container" style={{ minHeight: '100vh', background: 'var(--bg-base)', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
@@ -224,15 +217,24 @@ export default function CallPage() {
               )}
             </div>
             
-            {/* Local Video */}
+            {/* Local Video (Replaced by DetectorEngine) */}
             <div style={{ flex: 1, background: '#000', borderRadius: '16px', overflow: 'hidden', position: 'relative', border: '1px solid var(--border)' }}>
-              <video 
-                ref={localVideoRef} 
-                autoPlay 
-                playsInline 
-                muted
-                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} 
-              />
+              <div style={{ position: 'absolute', inset: 0, transform: 'scaleX(-1)' }}>
+                <DetectorEngine 
+                  mode="asl"
+                  outputMode="sentence"
+                  voicePref="female"
+                  isPaused={false}
+                  onWordDetected={() => {}}
+                  onSentenceDetected={handleSentenceDetected}
+                  onSignUpdate={() => {}}
+                  onGestureUpdate={() => {}}
+                  onModeSwitch={() => {}}
+                  onUniversalAction={() => {}}
+                  onStreamReady={(stream) => streamRef.current = stream}
+                  hideUI={true}
+                />
+              </div>
             </div>
           </div>
 
@@ -296,11 +298,11 @@ export default function CallPage() {
                   type="text" 
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                  onKeyDown={(e) => e.key === 'Enter' && sendMessage(chatInput)}
                   placeholder="Type or gesture..."
                   style={{ flex: 1, padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)' }}
                 />
-                <button onClick={sendMessage} style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '0 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Send</button>
+                <button onClick={() => sendMessage(chatInput)} style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '0 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>Send</button>
               </div>
             )}
           </div>

@@ -684,7 +684,7 @@ body::after {
   gap: 4px;
   align-self: center;
   width: 100%;
-  max-width: 480px;
+  max-width: fit-content;
   margin: 0 auto;
 }
 
@@ -704,6 +704,7 @@ body::after {
   background: transparent;
   color: var(--text-muted);
   letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .mode-btn:hover {

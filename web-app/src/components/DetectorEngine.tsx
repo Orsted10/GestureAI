@@ -221,6 +221,8 @@ interface DetectorEngineProps {
   isPaused: boolean;
   onModeSwitch: (m: 'asl' | 'isl' | 'custom' | 'ide') => void;
   onUniversalAction: (action: 'speak' | 'polish') => void;
+  onStreamReady?: (stream: MediaStream) => void;
+  hideUI?: boolean;
 }
 
 export default function DetectorEngine({
@@ -234,6 +236,8 @@ export default function DetectorEngine({
   isPaused,
   onModeSwitch,
   onUniversalAction,
+  onStreamReady,
+  hideUI = false,
 }: DetectorEngineProps) {
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -365,7 +369,13 @@ export default function DetectorEngine({
             height: 240,
           });
           camera.start().then(() => {
-            if (alive) setStatusMsg((aslModelRef.current && islModelRef.current) ? '' : 'Starting up…');
+            if (alive) {
+              setStatusMsg((aslModelRef.current && islModelRef.current) ? '' : 'Starting up…');
+              if (videoRef.current && onStreamReady) {
+                const stream = (videoRef.current as any).srcObject;
+                if (stream) onStreamReady(stream);
+              }
+            }
           });
         }
       }
