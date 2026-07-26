@@ -115,3 +115,38 @@ export const GESTURE_MAP: Record<GestureId, GestureDefinition> = {
 export const GESTURE_LIST: GestureId[] = Object.keys(GESTURE_MAP) as GestureId[];
 
 export const FINGER_SENTENCES: Record<number, string> = {};
+export interface IDEGestureDefinition {
+  id: GestureId;
+  label: string;
+  emoji: string;
+  code: string;
+  description: string;
+}
+
+export const IDE_MAP: Partial<Record<GestureId, IDEGestureDefinition>> = {
+  // Utility
+  FIST: { id: 'FIST', label: 'Delete', emoji: '✊', code: 'BACKSPACE', description: 'Delete last token' },
+  BOTH_FISTS: { id: 'BOTH_FISTS', label: 'Clear All', emoji: '🤜🤛', code: 'CLEAR', description: 'Clear IDE' },
+  INDEX: { id: 'INDEX', label: 'Execute', emoji: '☝️', code: 'RUN', description: 'Run Python Code' },
+  
+  // Syntax
+  OPEN_PALM: { id: 'OPEN_PALM', label: 'Print', emoji: '🖐️', code: 'print("Hello, World!")\n', description: 'print()' },
+  THUMB_UP: { id: 'THUMB_UP', label: 'True', emoji: '👍', code: 'True', description: 'Boolean True' },
+  THUMB_DOWN: { id: 'THUMB_DOWN', label: 'False', emoji: '👎', code: 'False', description: 'Boolean False' },
+  PEACE: { id: 'PEACE', label: 'Return', emoji: '✌️', code: 'return ', description: 'return statement' },
+  ROCK: { id: 'ROCK', label: 'If', emoji: '🤘', code: 'if ', description: 'if statement' },
+  L_SHAPE: { id: 'L_SHAPE', label: 'Def', emoji: '🫲', code: 'def ', description: 'def function' },
+  C_SHAPE: { id: 'C_SHAPE', label: 'Class', emoji: '🗜️', code: 'class ', description: 'class definition' },
+  O_SHAPE: { id: 'O_SHAPE', label: 'For Loop', emoji: '👌', code: 'for i in range(10):\n    ', description: 'for loop' },
+  CROSSED_FINGERS: { id: 'CROSSED_FINGERS', label: 'Try/Except', emoji: '🤞', code: 'try:\n    \nexcept Exception as e:\n    ', description: 'Try/Except block' },
+  THREE: { id: 'THREE', label: 'Import Math', emoji: '🖖', code: 'import math\n', description: 'import math' },
+  SHAKA: { id: 'SHAKA', label: 'Import Time', emoji: '🤙', code: 'import time\n', description: 'import time' },
+  ILY: { id: 'ILY', label: 'Self', emoji: '🤟', code: 'self', description: 'self keyword' },
+  INDEX_SIDE: { id: 'INDEX_SIDE', label: 'Indent', emoji: '👉', code: '    ', description: 'Add indentation' },
+  INDEX_DOWN: { id: 'INDEX_DOWN', label: 'Newline', emoji: '👇', code: '\n', description: 'Add newline' },
+  BOTH_OPEN: { id: 'BOTH_OPEN', label: 'Main', emoji: '🙌', code: 'if __name__ == "__main__":\n    ', description: 'Main execution block' },
+  BOTH_PEACE: { id: 'BOTH_PEACE', label: 'Equals', emoji: '✌️✌️', code: ' = ', description: 'Assignment operator' },
+  BOTH_THUMB_UP: { id: 'BOTH_THUMB_UP', label: 'Plus', emoji: '👍👍', code: ' + ', description: 'Addition operator' },
+  BOTH_THUMB_DOWN: { id: 'BOTH_THUMB_DOWN', label: 'Minus', emoji: '👎👎', code: ' - ', description: 'Subtraction operator' },
+  BOTH_ROCK: { id: 'BOTH_ROCK', label: 'Multiply', emoji: '🤘🤘', code: ' * ', description: 'Multiplication operator' },
+};

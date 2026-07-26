@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Camera, Clipboard, Volume2, Trash2, ExternalLink,
   CheckCheck, Type, Zap, X, BarChart2, Hand, Radio, GraduationCap, MessageSquare,
@@ -77,7 +77,7 @@ const PREDICTIONS: Record<string, string[]> = {
   'STOP': ['right now'],
 };
 
-type AppMode = 'asl' | 'isl' | 'custom';
+type AppMode = 'asl' | 'isl' | 'custom' | 'ide';
 
 export default function Home() {
   const [theme, setTheme]             = useState<'light' | 'dark'>('dark');
@@ -103,6 +103,12 @@ export default function Home() {
   // Custom gesture state
   const [activeGesture, setActiveGesture]    = useState<GestureId>('UNKNOWN');
   const [gestureProgress, setGestureProgress] = useState(0);
+
+  // IDE State
+  const [ideCode, setIdeCode] = useState('');
+  const [ideOutput, setIdeOutput] = useState('');
+  const [isExecuting, setIsExecuting] = useState(false);
+  const pyodideRef = useRef<any>(null);
 
   const [copied, setCopied] = useState(false);
 
@@ -147,6 +153,23 @@ export default function Home() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
+  // Load Pyodide
+  useEffect(() => {
+    if (mode === 'ide' && !pyodideRef.current) {
+      const loadPyodideEngine = async () => {
+        try {
+          if ((window as any).loadPyodide) {
+            pyodideRef.current = await (window as any).loadPyodide();
+            setIdeOutput('Python Ready (Pyodide 0.25.0)\n>>> ');
+          }
+        } catch (e: any) {
+          setIdeOutput(`Failed to load Python environment: ${e.message}`);
+        }
+      };
+      loadPyodideEngine();
+    }
+  }, [mode]);
+
 
 
   // ── ASL mode handlers ─────────────────────────────────────────────────────
@@ -188,6 +211,44 @@ export default function Home() {
   const handleSentenceDetected = useCallback((phrase: string, gestureId: GestureId) => {
     setGestureProgress(0);
 
+    if (mode === 'ide') {
+      if (gestureId === 'FIST') {
+        setIdeCode(prev => prev.slice(0, -1)); // simple backspace
+        return;
+      }
+      if (gestureId === 'BOTH_FISTS') {
+        setIdeCode('');
+        return;
+      }
+      if (gestureId === 'INDEX') {
+        // Execute Code
+        if (!pyodideRef.current) return;
+        setIsExecuting(true);
+        setTimeout(async () => {
+          try {
+            // Redirect stdout to capture print()
+            await pyodideRef.current.runPythonAsync(`
+import sys
+import io
+sys.stdout = io.StringIO()
+            `);
+            await pyodideRef.current.runPythonAsync(ideCode);
+            const stdout = await pyodideRef.current.runPythonAsync("sys.stdout.getvalue()");
+            setIdeOutput(`>>> ${stdout}`);
+          } catch (err: any) {
+            setIdeOutput(`Error: ${err.message}`);
+          } finally {
+            setIsExecuting(false);
+          }
+        }, 100);
+        return;
+      }
+      if (phrase) {
+        setIdeCode(prev => prev + phrase);
+      }
+      return;
+    }
+
     // Utility gestures — action only, no TTS
     if (gestureId === 'FIST') {
       setWords(prev => prev.slice(0, -1));   // delete last word/phrase
@@ -214,14 +275,14 @@ export default function Home() {
         return [...prev, phrase];
       });
     }
-  }, []);
+  }, [mode, ideCode]);
 
   const handleGestureUpdate = useCallback((gestureId: GestureId, progress: number) => {
     setActiveGesture(gestureId);
     setGestureProgress(progress);
   }, []);
 
-  const switchMode = (m: 'asl' | 'isl' | 'custom' | 'cycle') => {
+  const switchMode = (m: 'asl' | 'isl' | 'custom' | 'ide' | 'cycle') => {
     if (m === 'cycle') {
       setMode(prev => prev === 'asl' ? 'isl' : prev === 'isl' ? 'custom' : 'asl');
     } else {
@@ -401,6 +462,10 @@ export default function Home() {
             <Hand size={15} />
             Custom Gestures
           </button>
+          <button className={`mode-btn${mode === 'ide' ? ' active' : ''}`} onClick={() => switchMode('ide')}>
+            <Zap size={15} />
+            Python IDE
+          </button>
 
           <div className="vertical-divider" />
                     <button 
@@ -561,6 +626,53 @@ export default function Home() {
                 successTrigger={successTrigger}
                 onSkip={() => getRandomChallenge()}
               />
+            ) : mode === 'ide' ? (
+              <div className="card animate-in gesture-legend" style={{ animationDelay: '0.10s', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div className="card-header">
+                  <span className="card-title"><Zap size={14} className="card-icon" />Python IDE</span>
+                  <div className="card-actions">
+                    <button className="icon-btn success" onClick={() => handleSentenceDetected('', 'INDEX')} disabled={isExecuting} title="Run Code">
+                      {isExecuting ? <div className="spinner animate-spin" style={{width: 14, height: 14}} /> : <Play size={14} />}
+                    </button>
+                    <button className="icon-btn danger" onClick={() => setIdeCode('')} title="Clear Code">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <textarea 
+                    value={ideCode}
+                    onChange={(e) => setIdeCode(e.target.value)}
+                    style={{ 
+                      flex: 1, 
+                      background: 'var(--bg-base)', 
+                      color: '#a78bfa', 
+                      fontFamily: 'monospace', 
+                      padding: '1rem', 
+                      borderRadius: '12px',
+                      border: '1px solid var(--border)',
+                      resize: 'none',
+                      outline: 'none'
+                    }}
+                    placeholder="# Write Python code here using gestures or keyboard..."
+                    spellCheck={false}
+                  />
+                  <div style={{
+                    height: '30%',
+                    background: '#0f172a',
+                    color: '#e2e8f0',
+                    fontFamily: 'monospace',
+                    padding: '1rem',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border)',
+                    overflowY: 'auto',
+                    whiteSpace: 'pre-wrap',
+                    fontSize: '0.85rem'
+                  }}>
+                    {ideOutput || 'Output will appear here...'}
+                  </div>
+                </div>
+              </div>
             ) : (
               <>
                 {/* Custom Gesture cheat-sheet */}

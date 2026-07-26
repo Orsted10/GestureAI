@@ -27,6 +27,7 @@ export default function LandingPage() {
           <Link href="/motives">Motives</Link>
           <Link href="/team">Team</Link>
           <Link href="/about">About</Link>
+          <Link href="/call" style={{ fontWeight: 800, color: 'var(--accent)' }}>Call</Link>
           <button 
             onClick={() => router.push('/live')} 
             style={{ 

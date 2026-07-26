@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { TTSManager } from '@/utils/tts';
-import { GESTURE_MAP, type GestureId } from '@/utils/fingerGestures';
+import { GESTURE_MAP, IDE_MAP, type GestureId } from '@/utils/fingerGestures';
 import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
 
 // ── Shared Tuning ─────────────────────────────────────────────────────────
@@ -211,7 +211,7 @@ function modeVote<T extends string>(history: T[]): T {
 // ── Main Unified Component ─────────────────────────────────────────────────
 
 interface DetectorEngineProps {
-  mode: 'asl' | 'isl' | 'custom';
+  mode: 'asl' | 'isl' | 'custom' | 'ide';
   outputMode: 'word' | 'sentence';
   voicePref: 'female' | 'male';
   onWordDetected: (word: string) => void;
@@ -219,7 +219,7 @@ interface DetectorEngineProps {
   onSentenceDetected: (phrase: string, gestureId: GestureId) => void;
   onGestureUpdate: (gestureId: GestureId, progress: number) => void;
   isPaused: boolean;
-  onModeSwitch: (m: 'asl' | 'isl' | 'custom') => void;
+  onModeSwitch: (m: 'asl' | 'isl' | 'custom' | 'ide') => void;
   onUniversalAction: (action: 'speak' | 'polish') => void;
 }
 
@@ -521,6 +521,20 @@ export default function DetectorEngine({
       
       if (gesture === 'FOUR') { onModeSwitch('cycle' as any); return; }
       
+      // IDE Mode Support
+      if (currentMode === 'ide') {
+        const ideDef = IDE_MAP[gesture as GestureId];
+        if (!ideDef) return;
+        
+        // Treat INDEX as RUN code, FIST as DEL, BOTH_FISTS as CLEAR
+        if (gesture === 'INDEX' || gesture === 'PINKY' || gesture === 'FIST' || gesture === 'BOTH_FISTS') {
+           onSentenceDetected(ideDef.code, gesture as any);
+           return;
+        }
+        onSentenceDetected(ideDef.code, gesture as any);
+        return;
+      }
+
       // Universal Action Gestures
       if (gesture === 'INDEX') { onUniversalAction('speak'); return; }
       if (gesture === 'PINKY') { onUniversalAction('polish'); return; }

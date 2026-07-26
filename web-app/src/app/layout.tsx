@@ -12,7 +12,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         {/* TensorFlow.js core */}
         <Script src="/tfjs/tf.min.js" strategy="beforeInteractive" />
@@ -22,6 +22,8 @@ export default function RootLayout({
         <Script src="/mediapipe/camera_utils/camera_utils.js" strategy="beforeInteractive" />
         <Script src="/mediapipe/drawing_utils/drawing_utils.js" strategy="beforeInteractive" />
         <Script src="/mediapipe/holistic/holistic.js" strategy="beforeInteractive" />
+        {/* Pyodide for Python IDE */}
+        <Script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js" strategy="beforeInteractive" />
       </head>
       <body suppressHydrationWarning>
         {children}
