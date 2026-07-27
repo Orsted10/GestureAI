@@ -10,6 +10,7 @@ import {
 import { GESTURE_MAP, GESTURE_LIST, IDE_MAP, type GestureId } from '@/utils/fingerGestures';
 import { ISL_MAP, type ISLWordId } from '@/utils/islGestures';
 import LearnModePanel from '@/components/LearnModePanel';
+import HearingModePanel from '@/components/HearingModePanel';
 
 // ── Lazy-load Unified Engine (client-only, heavy) ─────────────────────────────
 const DetectorEngine = dynamic(() => import('@/components/DetectorEngine'), {
@@ -904,6 +905,9 @@ sys.stdout = io.StringIO()
                 </button>
               </div>
             </div>
+
+            {/* Reverse Translation (Hearing to Signs) */}
+            <HearingModePanel mode={mode as 'asl' | 'isl' | 'custom' | 'ide'} />
 
             {/* Word chips */}
             {words.length > 0 && (
